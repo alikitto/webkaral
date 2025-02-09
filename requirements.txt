@@ -1,0 +1,5 @@
+flask
+woocommerce
+gunicorn
+requests
+python-dotenv
