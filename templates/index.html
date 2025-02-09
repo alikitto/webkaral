@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Добавить товар</title>
+</head>
+<body>
+    <h1>Добавление товара</h1>
+    <form action="/add-product" method="POST">
+        <label>Категория:</label>
+        <select name="category">
+            <option value="144">Qızıl komplektlər və dəstlər</option>
+            <option value="138">Qızıl qolbaqlar</option>
+            <option value="140">Qızıl seplər</option>
+            <option value="132">Qızıl sırqalar</option>
+            <option value="126">Qızıl üzüklər</option>
+        </select><br><br>
+
+        <label>Вес (граммы):</label>
+        <input type="number" step="0.01" name="weight" required><br><br>
+
+        <label>Проба золота:</label>
+        <select name="gold_purity">
+            <option value="585">585</option>
+            <option value="750">750</option>
+            <option value="875">875</option>
+        </select><br><br>
+
+        <label>Цена (AZN):</label>
+        <input type="number" step="0.01" name="price" required><br><br>
+
+        <label>Цена со скидкой (AZN):</label>
+        <input type="number" step="0.01" name="sale_price"><br><br>
+
+        <button type="submit">Добавить</button>
+    </form>
+</body>
+</html>
