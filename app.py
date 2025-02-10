@@ -37,7 +37,8 @@ def add_product():
             "attributes": [
                 {
                     "id": 2,  # ID атрибута "Əyar"
-                    "option": gold_purity_id  # Используем ID пробы золота
+                    "visible": True,  # Отображение атрибута на странице товара
+                    "options": [gold_purity_id]  # Используем ID пробы золота
                 }
             ]
         }
