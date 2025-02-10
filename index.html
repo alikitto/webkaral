@@ -7,7 +7,7 @@
 </head>
 <body>
     <h1>Добавление товара</h1>
-    <form id="productForm" action="/add_product" method="POST">
+    <form id="productForm" action="/add-product" method="POST">
         <label for="name">Название товара:</label>
         <input type="text" id="name" name="name" required><br><br>
 
@@ -17,15 +17,15 @@
         <label for="weight">Вес (г):</label>
         <input type="text" id="weight" name="weight" required><br><br>
 
-        <label for="purity">Проба золота:</label>
-        <select id="purity" name="purity" required>
+        <label for="gold_purity">Проба золота:</label>
+        <select id="gold_purity" name="gold_purity" required>
             <option value="585">585</option>
             <option value="750">750</option>
             <option value="875">875</option>
         </select><br><br>
 
         <label for="category">Категория:</label>
-        <select id="category" name="category_id" required>
+        <select id="category" name="category" required>
             <option value="126">Qızıl üzüklər</option>
             <option value="132">Qızıl sırqalar</option>
             <option value="140">Qızıl seplər</option>
@@ -49,7 +49,7 @@
             const responseMessage = document.getElementById("responseMessage");
 
             try {
-                const response = await fetch("/add_product", {
+                const response = await fetch("/add-product", {
                     method: "POST",
                     body: formData
                 });
