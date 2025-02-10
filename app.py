@@ -25,24 +25,26 @@ def add_product():
         sale_price = request.form.get("sale_price", "0")
         image_url = request.form.get("image", "https://karal.az/wp-content/uploads/2020/01/20200109_113139.jpg")
 
-        # Подготовка данных для добавления в WooCommerce
-        product_data = {
-            "name": name,
-            "type": "simple",
-            "regular_price": price,
-            "sale_price": sale_price if sale_price != "0" else None,
-            "categories": [{"id": int(category_id)}],
-            "images": [{"src": image_url}],
-            "weight": weight,  # Вес товара
-            "attributes": [
-                {
-                    "id": 2,  # ID атрибута Əyar
-                    "visible": True,  # Отображение атрибута на странице товара
-                    "variation": False,  # Атрибут не вариативный
-                    "options": [gold_purity_slug]  # Привязка через slug
-                }
-            ]
-        }
+# Подготовка данных для атрибутов
+attributes_data = [
+    {
+        "id": 2,  # ID атрибута Əyar
+        "options": [gold_purity]  # Здесь передаётся slug, например: "585" или "750"
+    }
+]
+
+# Добавляем атрибуты к данным товара
+product_data = {
+    "name": f"Товар {gold_purity} {weight}г",
+    "type": "simple",
+    "regular_price": price,
+    "sale_price": sale_price if sale_price != "0" else None,
+    "categories": [{"id": int(category_id)}],
+    "description": f"Вес: {weight} г, Проба золота: {gold_purity}",
+    "images": [{"src": image_url}],
+    "attributes": attributes_data
+}
+
 
         # Отправка данных в WooCommerce
         url = f"{WC_API_URL}/products"
