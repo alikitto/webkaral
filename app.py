@@ -36,37 +36,36 @@ def add_product():
         # Получение данных из формы
         category_id = request.form.get("category")
         weight = request.form.get("weight")
-        gold_purity_slug = request.form.get("gold_purity")
+        gold_purity = request.form.get("gold_purity")  # Значение: slug, например, "585"
         price = request.form.get("price")
         sale_price = request.form.get("sale_price", "0")
 
-        # Дефолтное изображение (если не загружено)
-        image_url = request.form.get(
-            "image",
-            "https://karal.az/wp-content/uploads/2020/01/20200109_113139.jpg"
-        )
+        # Дефолтное изображение (если не указано)
+        image_url = "https://karal.az/wp-content/uploads/2020/01/20200109_113139.jpg"
 
         # Подготовка данных для отправки в WooCommerce
         product_data = {
-            "name": f"Товар {gold_purity_slug} {weight}г",
+            "name": f"Товар {gold_purity} {weight}г",
             "type": "simple",
             "regular_price": price,
             "sale_price": sale_price if sale_price != "0" else None,
             "categories": [{"id": int(category_id)}],
-            "description": f"Вес: {weight} г, Проба золота: {gold_purity_slug}",
-            "images": [{"src": image_url}],
+            "shipping": {
+                "weight": weight  # Вес в разделе доставки
+            },
             "attributes": [
                 {
                     "id": 2,  # ID атрибута Əyar
-                    "options": [gold_purity_slug]  # Здесь передаётся slug, например: "585" или "750"
+                    "options": [gold_purity],  # Передаем slug
+                    "visible": True,  # Делаем атрибут видимым
+                    "variation": False
                 }
             ],
-            "shipping_data": {
-                "weight": weight
-            }
+            "description": f"Вес: {weight} г, Проба золота: {gold_purity}",
+            "images": [{"src": image_url}]
         }
 
-        # Отправка запроса в WooCommerce API
+        # Отправка данных в WooCommerce API
         url = f"{WC_API_URL}/products"
         params = {
             "consumer_key": WC_CONSUMER_KEY,
@@ -81,7 +80,7 @@ def add_product():
             return jsonify({
                 "status": "error",
                 "message": "Ошибка при добавлении товара.",
-                "details": response.text,  # Подробное сообщение об ошибке
+                "details": response.text,
                 "status_code": response.status_code
             }), 400
 
