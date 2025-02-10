@@ -27,37 +27,46 @@ def home():
     categories = fetch_categories()
     return render_template("index.html", categories=categories)
 
+# Словарь для соответствия ID атрибутов и их значений
+ATTRIBUTE_VALUES = {
+    "105": "585 (14K)",
+    "106": "750 (18K)"
+}
+
 @app.route("/add-product", methods=["POST"])
 def add_product():
     try:
         # Получение данных из формы
         category_id = request.form.get("category")
         weight = request.form.get("weight")
-        gold_purity_tag_id = request.form.get("gold_purity")  # ID значения атрибута Əyar (например, 105 или 106)
+        gold_purity_tag_id = request.form.get("gold_purity")  # ID значения атрибута Əyar
         price = request.form.get("price")
         sale_price = request.form.get("sale_price", "0")
+
+        # Проверка наличия значения атрибута
+        gold_purity_value = ATTRIBUTE_VALUES.get(gold_purity_tag_id, "Неизвестная проба")
 
         # Дефолтное изображение (если не указано)
         image_url = "https://karal.az/wp-content/uploads/2020/01/20200109_113139.jpg"
 
         # Подготовка данных для отправки в WooCommerce
         product_data = {
-            "name": f"Товар {weight}г (проба {gold_purity_tag_id})",
+            "name": f"Товар {weight}г (проба {gold_purity_value})",
             "type": "simple",
             "regular_price": price,
             "sale_price": sale_price if sale_price != "0" else None,
             "categories": [{"id": int(category_id)}],
-            "shipping_class": None,  # Укажите, если у вас есть классы доставки
+            "shipping_class": None,
             "weight": weight,  # Вес в разделе доставки
             "attributes": [
                 {
                     "id": 2,  # ID атрибута Əyar
-                    "options": [gold_purity_tag_id],  # Передаем tag_id
+                    "options": [gold_purity_value],  # Передаем текстовое значение
                     "visible": True,  # Делаем атрибут видимым
                     "variation": False
                 }
             ],
-            "description": f"Вес: {weight} г, Проба золота: {gold_purity_tag_id}",
+            "description": f"Вес: {weight} г, Проба золота: {gold_purity_value}",
             "images": [{"src": image_url}]
         }
 
@@ -82,6 +91,7 @@ def add_product():
 
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
+
 
 if __name__ == "__main__":
     app.run(debug=True, host="0.0.0.0", port=8080)
