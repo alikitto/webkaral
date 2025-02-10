@@ -1,13 +1,13 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="ru">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>WooCommerce Product Uploader</title>
+    <title>Добавление товара в WooCommerce</title>
 </head>
 <body>
     <h1>Добавление товара</h1>
-    <form id="productForm">
+    <form id="productForm" action="/add_product" method="POST">
         <label for="name">Название товара:</label>
         <input type="text" id="name" name="name" required><br><br>
 
@@ -25,7 +25,7 @@
         </select><br><br>
 
         <label for="category">Категория:</label>
-        <select id="category" name="category" required>
+        <select id="category" name="category_id" required>
             <option value="126">Qızıl üzüklər</option>
             <option value="132">Qızıl sırqalar</option>
             <option value="140">Qızıl seplər</option>
@@ -45,36 +45,26 @@
         document.getElementById("productForm").addEventListener("submit", async function(event) {
             event.preventDefault();
 
-            const formData = {
-                name: document.getElementById("name").value,
-                price: document.getElementById("price").value,
-                weight: document.getElementById("weight").value,
-                purity: document.getElementById("purity").value,
-                category_id: document.getElementById("category").value,
-                image: document.getElementById("image").value
-            };
-
+            const formData = new FormData(this);
             const responseMessage = document.getElementById("responseMessage");
 
             try {
                 const response = await fetch("/add_product", {
                     method: "POST",
-                    headers: {
-                        "Content-Type": "application/json"
-                    },
-                    body: JSON.stringify(formData)
+                    body: formData
                 });
 
                 const result = await response.json();
                 if (response.ok) {
                     responseMessage.textContent = result.message;
                     responseMessage.style.color = "green";
+                    this.reset(); // Очищаем форму после успешной отправки
                 } else {
-                    responseMessage.textContent = result.message || "Ошибка при добавлении товара.";
+                    responseMessage.textContent = result.message || "❌ Ошибка при добавлении товара.";
                     responseMessage.style.color = "red";
                 }
             } catch (error) {
-                responseMessage.textContent = "Ошибка соединения.";
+                responseMessage.textContent = "❌ Ошибка соединения.";
                 responseMessage.style.color = "red";
             }
         });
