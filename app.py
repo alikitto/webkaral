@@ -33,12 +33,25 @@ def add_product():
         # Получение данных из формы
         category_id = request.form.get("category")
         weight = request.form.get("weight")
-        gold_purity = request.form.get("gold_purity")
+        gold_purity = request.form.get("gold_purity")  # Например, "750" или "585"
         price = request.form.get("price")
         sale_price = request.form.get("sale_price", "0")
 
         # Дефолтное изображение (если не загружено)
         image_url = "https://karal.az/wp-content/uploads/2020/01/20200109_113139.jpg"
+
+        # Определение ID значений атрибутов
+        gold_purity_ids = {
+            "750": 106,
+            "585": 105
+        }
+
+        # Проверяем, существует ли введённая проба золота
+        if gold_purity not in gold_purity_ids:
+            return jsonify({
+                "status": "error",
+                "message": f"Указанная проба золота '{gold_purity}' недействительна. Допустимые значения: 750, 585."
+            }), 400
 
         # Подготовка данных для отправки в WooCommerce
         product_data = {
@@ -52,11 +65,17 @@ def add_product():
             "weight": weight,  # Вес в разделе "Доставка"
             "attributes": [
                 {
-                    "id": 2,  # ID атрибута "Əyar"
+                    "id": 2,  # ID атрибута "Əyar" (в базе WooCommerce)
                     "name": "Əyar",
-                    "options": [gold_purity],  # Используем значение, как в базе WooCommerce
-                    "visible": True,  # Отображение атрибута на странице товара
+                    "options": [gold_purity],  # Значение проб, как текст
+                    "visible": True,  # Отображение на странице товара
                     "variation": False
+                }
+            ],
+            "default_attributes": [
+                {
+                    "id": 2,  # ID атрибута "Əyar"
+                    "option": gold_purity_ids[gold_purity]  # ID значения пробы
                 }
             ]
         }
@@ -82,6 +101,7 @@ def add_product():
 
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
+
 
 if __name__ == "__main__":
     app.run(debug=True, host="0.0.0.0", port=8080)
