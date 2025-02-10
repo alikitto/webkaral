@@ -1,3 +1,18 @@
+from flask import Flask, render_template, request, jsonify
+import requests
+import os
+
+app = Flask(__name__)
+
+# WooCommerce API настройки
+WC_API_URL = os.getenv("WC_API_URL", "https://karal.az/wp-json/wc/v3")
+WC_CONSUMER_KEY = os.getenv("WC_CONSUMER_KEY")
+WC_CONSUMER_SECRET = os.getenv("WC_CONSUMER_SECRET")
+
+@app.route("/")
+def home():
+    return render_template("index.html")
+
 @app.route("/add-product", methods=["POST"])
 def add_product():
     try:
@@ -49,3 +64,6 @@ def add_product():
 
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
+
+if __name__ == "__main__":
+    app.run(debug=True, host="0.0.0.0", port=8080)
