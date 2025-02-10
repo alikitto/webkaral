@@ -39,7 +39,7 @@ def add_product():
                     "id": 2,  # ID атрибута "Əyar"
                     "visible": True,  # Отображение атрибута на странице товара
                     "variation": False,  # Атрибут не вариативный
-                    "options": [int(gold_purity_id)]  # Передаем ID значения
+                    "options": [gold_purity_id]  # Передаем ID значения как строку
                 }
             ]
         }
