@@ -1,18 +1,3 @@
-from flask import Flask, render_template, request, jsonify
-import requests
-import os
-
-app = Flask(__name__)
-
-# WooCommerce API настройки
-WC_API_URL = os.getenv("WC_API_URL", "https://karal.az/wp-json/wc/v3")
-WC_CONSUMER_KEY = os.getenv("WC_CONSUMER_KEY")
-WC_CONSUMER_SECRET = os.getenv("WC_CONSUMER_SECRET")
-
-@app.route("/")
-def home():
-    return render_template("index.html")
-
 @app.route("/add-product", methods=["POST"])
 def add_product():
     try:
@@ -20,7 +5,7 @@ def add_product():
         name = request.form.get("name")
         category_id = request.form.get("category")
         weight = request.form.get("weight")
-        gold_purity_tag_id = request.form.get("gold_purity")  # ID значения атрибута Əyar
+        gold_purity_slug = request.form.get("gold_purity")  # Значение slug (например, "585-14k")
         price = request.form.get("price")
         sale_price = request.form.get("sale_price", "0")
         image_url = request.form.get("image", "https://karal.az/wp-content/uploads/2020/01/20200109_113139.jpg")
@@ -39,7 +24,7 @@ def add_product():
                     "id": 2,  # ID атрибута Əyar
                     "visible": True,  # Отображение атрибута на странице товара
                     "variation": False,  # Атрибут не вариативный
-                    "options": [str(gold_purity_tag_id)]  # Используем существующий tagid
+                    "options": [gold_purity_slug]  # Привязка через slug
                 }
             ]
         }
@@ -64,6 +49,3 @@ def add_product():
 
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
-
-if __name__ == "__main__":
-    app.run(debug=True, host="0.0.0.0", port=8080)
