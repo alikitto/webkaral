@@ -20,7 +20,7 @@ def add_product():
         name = request.form.get("name")
         category_id = request.form.get("category")
         weight = request.form.get("weight")
-        gold_purity_id = request.form.get("gold_purity")  # ID атрибута пробы золота
+        gold_purity_id = request.form.get("gold_purity")  # ID пробы золота
         price = request.form.get("price")
         sale_price = request.form.get("sale_price", "0")
         image_url = request.form.get("image", "https://karal.az/wp-content/uploads/2020/01/20200109_113139.jpg")
@@ -33,12 +33,13 @@ def add_product():
             "sale_price": sale_price if sale_price != "0" else None,
             "categories": [{"id": int(category_id)}],
             "images": [{"src": image_url}],
-            "weight": weight,  # Добавляем вес в "Доставка"
+            "weight": weight,  # Вес
             "attributes": [
                 {
                     "id": 2,  # ID атрибута "Əyar"
                     "visible": True,  # Отображение атрибута на странице товара
-                    "options": [gold_purity_id]  # Используем ID пробы золота
+                    "variation": False,  # Атрибут не вариативный
+                    "options": [int(gold_purity_id)]  # Передаем ID значения
                 }
             ]
         }
