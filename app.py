@@ -54,8 +54,9 @@ def add_product():
                 {
                     "id": 2,  # ID атрибута "Əyar"
                     "name": "Əyar",
-                    "option": gold_purity,  # Указываем ID уже существующего значения
-                    "visible": True  # Атрибут отображается на странице товара
+                    "options": [gold_purity],  # Используем значение, как в базе WooCommerce
+                    "visible": True,  # Отображение атрибута на странице товара
+                    "variation": False
                 }
             ]
         }
