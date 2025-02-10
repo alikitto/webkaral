@@ -52,9 +52,10 @@ def add_product():
             "weight": weight,  # Вес в разделе "Доставка"
             "attributes": [
                 {
-                    "id": 2,  # ID атрибута "Əyar" (Проба золота)
+                    "id": 2,  # ID атрибута "Əyar"
                     "name": "Əyar",
-                    "options": [gold_purity]
+                    "option": gold_purity,  # Указываем ID уже существующего значения
+                    "visible": True  # Атрибут отображается на странице товара
                 }
             ]
         }
@@ -74,7 +75,7 @@ def add_product():
             return jsonify({
                 "status": "error",
                 "message": "❌ Ошибка при добавлении товара.",
-                "details": response.text,  # Подробное сообщение об ошибке
+                "details": response.text,
                 "status_code": response.status_code
             }), 400
 
