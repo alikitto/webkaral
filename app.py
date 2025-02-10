@@ -1,3 +1,32 @@
+from flask import Flask, render_template, request, jsonify
+import requests
+import os
+
+app = Flask(__name__)
+
+# WooCommerce API настройки
+WC_API_URL = os.getenv("WC_API_URL", "https://karal.az/wp-json/wc/v3")
+WC_CONSUMER_KEY = os.getenv("WC_CONSUMER_KEY")
+WC_CONSUMER_SECRET = os.getenv("WC_CONSUMER_SECRET")
+
+# Функция для получения списка категорий из WooCommerce
+def fetch_categories():
+    url = f"{WC_API_URL}/products/categories"
+    params = {
+        "consumer_key": WC_CONSUMER_KEY,
+        "consumer_secret": WC_CONSUMER_SECRET
+    }
+    response = requests.get(url, params=params)
+
+    if response.status_code == 200:
+        return response.json()
+    return []
+
+@app.route("/")
+def home():
+    categories = fetch_categories()
+    return render_template("index.html", categories=categories)
+
 @app.route("/add-product", methods=["POST"])
 def add_product():
     try:
@@ -18,9 +47,8 @@ def add_product():
             "regular_price": price,
             "sale_price": sale_price if sale_price != "0" else None,
             "categories": [{"id": int(category_id)}],
-            "shipping": {
-                "weight": weight  # Вес в разделе доставки
-            },
+            "shipping_class": None,  # Укажите, если у вас есть классы доставки
+            "weight": weight,  # Вес в разделе доставки
             "attributes": [
                 {
                     "id": 2,  # ID атрибута Əyar
@@ -54,3 +82,6 @@ def add_product():
 
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
+
+if __name__ == "__main__":
+    app.run(debug=True, host="0.0.0.0", port=8080)
