@@ -3,38 +3,81 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Добавление товара</title>
+    <title>WooCommerce Product Uploader</title>
 </head>
 <body>
-    <h1>Добавить товар</h1>
-    <form method="POST">
-        <label for="name">Название товара:</label><br>
+    <h1>Добавление товара</h1>
+    <form id="productForm">
+        <label for="name">Название товара:</label>
         <input type="text" id="name" name="name" required><br><br>
 
-        <label for="category">Категория:</label><br>
-        <select id="category" name="category" required>
-            {% for category in categories %}
-            <option value="{{ category['id'] }}">{{ category['name'] }}</option>
-            {% endfor %}
-        </select><br><br>
+        <label for="price">Цена (AZN):</label>
+        <input type="text" id="price" name="price" required><br><br>
 
-        <label for="weight">Вес (в граммах):</label><br>
-        <input type="number" id="weight" name="weight" step="0.01" required><br><br>
+        <label for="weight">Вес (г):</label>
+        <input type="text" id="weight" name="weight" required><br><br>
 
-        <label for="gold_purity">Проба золота:</label><br>
-        <select id="gold_purity" name="gold_purity" required>
+        <label for="purity">Проба золота:</label>
+        <select id="purity" name="purity" required>
             <option value="585">585</option>
             <option value="750">750</option>
             <option value="875">875</option>
         </select><br><br>
 
-        <label for="price">Цена (AZN):</label><br>
-        <input type="number" id="price" name="price" step="0.01" required><br><br>
+        <label for="category">Категория:</label>
+        <select id="category" name="category" required>
+            <option value="126">Qızıl üzüklər</option>
+            <option value="132">Qızıl sırqalar</option>
+            <option value="140">Qızıl seplər</option>
+            <option value="138">Qızıl qolbaqlar</option>
+            <option value="144">Qızıl komplektlər və dəstlər</option>
+        </select><br><br>
 
-        <label for="sale_price">Цена со скидкой (AZN):</label><br>
-        <input type="number" id="sale_price" name="sale_price" step="0.01"><br><br>
+        <label for="image">Ссылка на изображение:</label>
+        <input type="text" id="image" name="image" value="https://karal.az/wp-content/uploads/2020/01/20200109_113139.jpg" required><br><br>
 
-        <button type="submit">Добавить</button>
+        <button type="submit">Добавить товар</button>
     </form>
+
+    <p id="responseMessage"></p>
+
+    <script>
+        document.getElementById("productForm").addEventListener("submit", async function(event) {
+            event.preventDefault();
+
+            const formData = {
+                name: document.getElementById("name").value,
+                price: document.getElementById("price").value,
+                weight: document.getElementById("weight").value,
+                purity: document.getElementById("purity").value,
+                category_id: document.getElementById("category").value,
+                image: document.getElementById("image").value
+            };
+
+            const responseMessage = document.getElementById("responseMessage");
+
+            try {
+                const response = await fetch("/add_product", {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json"
+                    },
+                    body: JSON.stringify(formData)
+                });
+
+                const result = await response.json();
+                if (response.ok) {
+                    responseMessage.textContent = result.message;
+                    responseMessage.style.color = "green";
+                } else {
+                    responseMessage.textContent = result.message || "Ошибка при добавлении товара.";
+                    responseMessage.style.color = "red";
+                }
+            } catch (error) {
+                responseMessage.textContent = "Ошибка соединения.";
+                responseMessage.style.color = "red";
+            }
+        });
+    </script>
 </body>
 </html>
