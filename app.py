@@ -39,7 +39,7 @@ def add_product():
                     "id": 2,  # ID атрибута Əyar
                     "visible": True,  # Отображение атрибута на странице товара
                     "variation": False,  # Атрибут не вариативный
-                    "options": [gold_purity_tag_id]  # Используем tagid как строку
+                    "options": [str(gold_purity_tag_id)]  # Используем существующий tagid
                 }
             ]
         }
