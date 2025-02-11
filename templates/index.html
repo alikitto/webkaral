@@ -1,30 +1,25 @@
 <!DOCTYPE html>
 <html lang="ru">
 <head>
-    <meta charset="UTF-8"> 
+    <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Добавление товара в WooCommerce</title>
+    <style>
+        body { font-family: Arial, sans-serif; max-width: 600px; margin: auto; padding: 20px; }
+        label { display: block; margin-top: 10px; }
+        input, select { width: 100%; padding: 8px; margin-top: 5px; }
+        button { margin-top: 15px; padding: 10px; width: 100%; background: #008CBA; color: white; border: none; cursor: pointer; }
+        button:disabled { background: #ccc; }
+        .hidden { display: none; }
+        .preloader { display: none; text-align: center; font-size: 18px; color: green; }
+        .success { color: green; font-weight: bold; }
+        .error { color: red; font-weight: bold; }
+    </style>
 </head>
 <body>
     <h1>Добавление товара</h1>
-    <form id="productForm" action="/add-product" method="POST">
-        <label for="name">Название товара:</label> 
-        <input type="text" id="name" name="name" required><br><br>
 
-        <label for="price">Цена (AZN):</label>
-        <input type="text" id="price" name="price" required><br><br>
-
-        <label for="weight">Вес (г):</label>
-        <input type="text" id="weight" name="weight" required><br><br>
-
-<label for="gold_purity">Проба золота:</label>
-<select name="gold_purity" required>
-    <option value="105">585 (14K)</option>
-    <option value="106">750 (18K)</option>
-</select>
-<br><br>
-
-
+    <form id="productForm" enctype="multipart/form-data">
         <label for="category">Категория:</label>
         <select id="category" name="category" required>
             <option value="126">Qızıl üzüklər</option>
@@ -32,22 +27,42 @@
             <option value="140">Qızıl seplər</option>
             <option value="138">Qızıl qolbaqlar</option>
             <option value="144">Qızıl komplektlər və dəstlər</option>
-        </select><br><br>
+        </select>
 
-        <label for="image">Ссылка на изображение:</label>
-        <input type="text" id="image" name="image" value="https://karal.az/wp-content/uploads/2020/01/20200109_113139.jpg" required><br><br>
+        <label for="weight">Вес (граммы):</label>
+        <input type="number" step="0.01" id="weight" name="weight" required>
+
+        <label for="gold_purity">Проба золота:</label>
+        <select id="gold_purity" name="gold_purity" required>
+            <option value="105">585 (14K)</option>
+            <option value="106">750 (18K)</option>
+        </select>
+
+        <label for="price">Цена (AZN):</label>
+        <input type="number" step="0.01" id="price" name="price" required>
+
+        <label for="sale_price">Цена со скидкой (AZN):</label>
+        <input type="number" step="0.01" id="sale_price" name="sale_price">
+
+        <label for="image">Изображение товара:</label>
+        <input type="file" id="image" name="image" accept="image/*" required>
 
         <button type="submit">Добавить товар</button>
     </form>
 
-    <p id="responseMessage"></p>
+    <p id="responseMessage" class="hidden"></p>
+    <div class="preloader">⏳ Загрузка...</div>
 
     <script>
         document.getElementById("productForm").addEventListener("submit", async function(event) {
             event.preventDefault();
-
+            
             const formData = new FormData(this);
             const responseMessage = document.getElementById("responseMessage");
+            const preloader = document.querySelector(".preloader");
+
+            preloader.style.display = "block";
+            responseMessage.classList.add("hidden");
 
             try {
                 const response = await fetch("/add-product", {
@@ -56,17 +71,23 @@
                 });
 
                 const result = await response.json();
+                preloader.style.display = "none";
+
                 if (response.ok) {
-                    responseMessage.textContent = result.message;
-                    responseMessage.style.color = "green";
+                    responseMessage.textContent = `✅ ${result.message}. Ссылка на товар: ${result.url}`;
+                    responseMessage.classList.remove("hidden", "error");
+                    responseMessage.classList.add("success");
                     this.reset();
                 } else {
                     responseMessage.textContent = result.message || "❌ Ошибка при добавлении товара.";
-                    responseMessage.style.color = "red";
+                    responseMessage.classList.remove("hidden", "success");
+                    responseMessage.classList.add("error");
                 }
             } catch (error) {
+                preloader.style.display = "none";
                 responseMessage.textContent = "❌ Ошибка соединения.";
-                responseMessage.style.color = "red";
+                responseMessage.classList.remove("hidden", "success");
+                responseMessage.classList.add("error");
             }
         });
     </script>
