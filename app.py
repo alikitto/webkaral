@@ -6,13 +6,11 @@ import base64
 
 app = Flask(__name__)
 
-# WooCommerce API настройки
+# WooCommerce API
 WC_API_URL = os.getenv("WC_API_URL", "https://karal.az/wp-json/wc/v3")
 WC_MEDIA_URL = os.getenv("WC_MEDIA_URL", "https://karal.az/wp-json/wp/v2/media")
 WC_CONSUMER_KEY = os.getenv("WC_CONSUMER_KEY")
 WC_CONSUMER_SECRET = os.getenv("WC_CONSUMER_SECRET")
-
-# Авторизация для API
 AUTH = (WC_CONSUMER_KEY, WC_CONSUMER_SECRET)
 
 # Пробы золота с ID
@@ -21,7 +19,7 @@ GOLD_PURITY_MAP = {
     "106": "750 (18K)"
 }
 
-# Категории товаров и генерация названия
+# Категории и названия товаров
 CATEGORY_TITLES = {
     "126": ("Qızıl üzük", "qizil-uzuk"),
     "132": ("Qızıl sırğa", "qizil-sirqa"),
@@ -81,7 +79,7 @@ def add_product():
             "images": [{"src": image_url}],  # 🖼 **Используем загруженное изображение**
             "attributes": [
                 {
-                    "id": 2,  # ID атрибута Əyar
+                    "id": 2,
                     "options": [GOLD_PURITY_MAP.get(gold_purity_id, "N/A")],
                     "visible": True,
                     "variation": False
@@ -117,21 +115,17 @@ def add_product():
 def upload_image_to_wc(image_file):
     try:
         url = WC_MEDIA_URL
-
         headers = {
             "User-Agent": "Mozilla/5.0",
-            "Content-Disposition": f"attachment; filename={image_file.filename}",
-            "Content-Type": image_file.mimetype,
             "Authorization": "Basic " + base64.b64encode(f"{WC_CONSUMER_KEY}:{WC_CONSUMER_SECRET}".encode()).decode()
         }
-
         files = {
             "file": (image_file.filename, image_file.stream, image_file.mimetype)
         }
 
         response = requests.post(url, headers=headers, files=files, auth=AUTH)
 
-        print(f"📢 Ответ от WooCommerce: {response.status_code}, {response.text}")  # 👈 Логирование ответа
+        print(f"📢 Ответ от WooCommerce: {response.status_code}, {response.text}")  # 👈 Логирование
 
         if response.status_code == 201:
             return response.json().get("source_url")  # 🖼 **Ссылка на загруженное изображение**
