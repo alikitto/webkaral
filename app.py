@@ -44,15 +44,17 @@ RING_DESCRIPTIONS = [
     "✨ Qızılın əbədi gözəlliyi! Zəriflik, incəlik və yüksək keyfiyyət – bu qızıl üzük hər anınızı daha xüsusi edəcək."
 ]
 
-# Функция загрузки файла (изображения или видео)
+# Функция загрузки файла (изображение или видео) в WordPress
 def upload_media(file):
-    """ Загружает файл в медиатеку WordPress и возвращает URL """
+    """ Загружает файл (изображение или видео) в медиатеку WordPress и возвращает URL """
     files = {"file": (file.filename, file.stream, file.content_type)}
     response = requests.post(WP_MEDIA_URL, headers=HEADERS, files=files)
 
     if response.status_code == 201:
-        return response.json().get("source_url")
-    return None
+        media_url = response.json().get("source_url")
+        return media_url
+    else:
+        return None
 
 # Главная страница
 @app.route("/")
@@ -66,11 +68,11 @@ def add_product():
         # Получаем данные из формы
         category_id = request.form.get("category")
         weight = request.form.get("weight")
-        gold_purity_id = request.form.get("gold_purity")
+        gold_purity_id = request.form.get("gold_purity")  # Получаем ID пробы
         price = request.form.get("price")
         sale_price = request.form.get("sale_price", "0")
         image = request.files.get("image")
-        video = request.files.get("video")  # Получаем видео
+        video = request.files.get("video")  # Файл видео
 
         # Преобразуем ID пробы в текстовое значение
         gold_purity = GOLD_PURITY_MAP.get(gold_purity_id, "585 (14K)")
@@ -87,7 +89,7 @@ def add_product():
             description = f"Yeni {product_name} modeli. Çəkisi: {weight}g, Əyarı: {gold_purity}"
 
         # Загружаем изображение
-        image_url = upload_media(image)
+        image_url = upload_media(image) if image else None
         if not image_url:
             return jsonify({"status": "error", "message": "❌ Ошибка загрузки изображения"}), 400
 
@@ -117,9 +119,9 @@ def add_product():
             ]
         }
 
-        # Если есть видео, добавляем его в meta_data
+        # Если есть видео, добавляем его в meta_data с ключом "video_url"
         if video_url:
-            product_data["meta_data"].append({"key": "_product_video", "value": video_url})
+            product_data["meta_data"].append({"key": "video_url", "value": video_url})
 
         # Отправляем товар в WooCommerce
         url = f"{WC_API_URL}/products"
