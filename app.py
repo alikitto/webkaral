@@ -11,16 +11,14 @@ WC_API_URL = os.getenv("WC_API_URL", "https://karal.az/wp-json/wc/v3")
 WC_CONSUMER_KEY = os.getenv("WC_CONSUMER_KEY")
 WC_CONSUMER_SECRET = os.getenv("WC_CONSUMER_SECRET")
 
-# WordPress API данные (для загрузки изображений)
+# WordPress API данные (для загрузки медиафайлов)
 WP_USERNAME = os.getenv("WP_USERNAME", "alikitto")
 WP_PASSWORD = os.getenv("WP_PASSWORD", "HsbD0gjVhsj0Fb1KXrMx4nLQ")
 WP_MEDIA_URL = "https://karal.az/wp-json/wp/v2/media"
 
 # Авторизация для WordPress API
 auth = base64.b64encode(f"{WP_USERNAME}:{WP_PASSWORD}".encode()).decode()
-HEADERS = {
-    "Authorization": f"Basic {auth}"
-}
+HEADERS = {"Authorization": f"Basic {auth}"}
 
 # Категории товаров
 CATEGORY_DATA = {
@@ -28,7 +26,7 @@ CATEGORY_DATA = {
     "132": {"name": "Qızıl sırğa", "slug": "qizil-sirqa"},
     "140": {"name": "Qızıl sep", "slug": "qizil-sep"},
     "138": {"name": "Qızıl qolbaq", "slug": "qizil-qolbaq"},
-    "144": {"name": ["Qızıl dəst", "Qızıl komplekt"], "slug": "qizil-komplekt-dest"}
+    "144": {"name": ["Qızıl dəst", "Qızıl komplekt"], "slug": "qizil-komplekt-dest"},
 }
 
 # Пробы золота (Əyar)
@@ -44,17 +42,15 @@ RING_DESCRIPTIONS = [
     "✨ Qızılın əbədi gözəlliyi! Zəriflik, incəlik və yüksək keyfiyyət – bu qızıl üzük hər anınızı daha xüsusi edəcək."
 ]
 
-# Функция загрузки изображения в WordPress
-def upload_image(image):
-    """ Загружает изображение в медиатеку WordPress и возвращает URL """
-    files = {"file": (image.filename, image.stream, image.content_type)}
+# Функция загрузки изображения или видео в WordPress
+def upload_media(file):
+    """ Загружает медиафайл (изображение или видео) в медиатеку WordPress и возвращает URL """
+    files = {"file": (file.filename, file.stream, file.content_type)}
     response = requests.post(WP_MEDIA_URL, headers=HEADERS, files=files)
 
     if response.status_code == 201:
-        image_url = response.json().get("source_url")
-        return image_url
-    else:
-        return None
+        return response.json().get("source_url")
+    return None
 
 # Главная страница
 @app.route("/")
@@ -72,6 +68,7 @@ def add_product():
         price = request.form.get("price")
         sale_price = request.form.get("sale_price", "0")
         image = request.files.get("image")
+        video = request.files.get("video")
 
         # Преобразуем ID пробы в текстовое значение
         gold_purity = GOLD_PURITY_MAP.get(gold_purity_id, "585 (14K)")
@@ -88,9 +85,12 @@ def add_product():
             description = f"Yeni {product_name} modeli. Çəkisi: {weight}g, Əyarı: {gold_purity}"
 
         # Загружаем изображение
-        image_url = upload_image(image)
+        image_url = upload_media(image) if image else None
         if not image_url:
             return jsonify({"status": "error", "message": "❌ Ошибка загрузки изображения"}), 400
+
+        # Загружаем видео
+        video_url = upload_media(video) if video else None
 
         # Данные для WooCommerce API
         product_data = {
@@ -111,10 +111,8 @@ def add_product():
                 }
             ],
             "meta_data": [
-                {
-                    "key": "_weight",
-                    "value": weight  # Вес
-                }
+                {"key": "_weight", "value": weight},  # Вес
+                {"key": "video_url", "value": video_url} if video_url else None,  # Ссылка на видео
             ]
         }
 
