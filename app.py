@@ -2,7 +2,6 @@ from flask import Flask, render_template, request, jsonify
 import requests
 import os
 import random
-import base64
 
 app = Flask(__name__)
 
@@ -57,7 +56,7 @@ def add_product():
         description_template = random.choice(DESCRIPTION_TEMPLATES.get(category_id, ["Yeni qızıl məhsul."]))
         description = description_template.format(weight=weight, gold_purity=GOLD_PURITY_MAP.get(gold_purity_id, "N/A"))
 
-        # Загрузка изображения в WooCommerce
+        # 📌 **Загрузка изображения в WooCommerce**
         image_url = None
         if 'image' in request.files:
             image_file = request.files['image']
@@ -75,7 +74,7 @@ def add_product():
             "sale_price": sale_price if sale_price != "0" else None,
             "categories": [{"id": int(category_id)}],
             "description": description,
-            "images": [{"src": image_url}],
+            "images": [{"src": image_url}],  # 🖼 **Используем загруженное изображение**
             "attributes": [
                 {
                     "id": 2,  # ID атрибута Əyar
@@ -113,7 +112,8 @@ def add_product():
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
 
-# **Функция загрузки изображений в WooCommerce через API**
+
+# **Функция загрузки изображений в WooCommerce**
 def upload_image_to_wc(image_file):
     try:
         url = WC_MEDIA_URL
@@ -122,32 +122,21 @@ def upload_image_to_wc(image_file):
             "consumer_secret": WC_CONSUMER_SECRET
         }
 
-        # Читаем файл в base64
-        image_data = image_file.read()
-        encoded_image = base64.b64encode(image_data).decode("utf-8")
-
-        headers = {
-            "Content-Type": "application/json"
+        files = {
+            "file": (image_file.filename, image_file.stream, image_file.mimetype)
         }
 
-        media_data = {
-            "title": image_file.filename,
-            "media_type": "image",
-            "post": 0,  # Не привязывать к конкретному посту
-            "description": "Загружено через API",
-            "source_url": encoded_image
-        }
-
-        response = requests.post(url, json=media_data, params=params, headers=headers)
+        response = requests.post(url, files=files, params=params)
 
         if response.status_code == 201:
-            return response.json().get("source_url")
+            return response.json().get("source_url")  # 🖼 **Ссылка на загруженное изображение**
         else:
             print(f"Ошибка загрузки изображения: {response.text}")
             return None
     except Exception as e:
         print(f"Ошибка при отправке изображения: {e}")
         return None
+
 
 if __name__ == "__main__":
     app.run(debug=True, host="0.0.0.0", port=8080)
