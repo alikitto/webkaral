@@ -7,6 +7,7 @@ app = Flask(__name__)
 
 # WooCommerce API настройки
 WC_API_URL = os.getenv("WC_API_URL", "https://karal.az/wp-json/wc/v3")
+WC_MEDIA_URL = os.getenv("WC_MEDIA_URL", "https://karal.az/wp-json/wp/v2/media")
 WC_CONSUMER_KEY = os.getenv("WC_CONSUMER_KEY")
 WC_CONSUMER_SECRET = os.getenv("WC_CONSUMER_SECRET")
 
@@ -25,7 +26,7 @@ CATEGORY_TITLES = {
     "144": ("Qızıl dəst komplekt", "qizil-komplet-dest")
 }
 
-# Описания товаров (случайный выбор)
+# Описания товаров
 DESCRIPTION_TEMPLATES = {
     "126": [
         "🔹 Yeni qızıl üzük modeli. Zərif dizaynı ilə gündəlik və xüsusi günlər üçün ideal seçim! ✨",
@@ -38,20 +39,9 @@ DESCRIPTION_TEMPLATES = {
     "144": ["Yeni qızıl komplekt."]
 }
 
-# Получение списка категорий из WooCommerce
-def fetch_categories():
-    url = f"{WC_API_URL}/products/categories"
-    params = {
-        "consumer_key": WC_CONSUMER_KEY,
-        "consumer_secret": WC_CONSUMER_SECRET
-    }
-    response = requests.get(url, params=params)
-    return response.json() if response.status_code == 200 else []
-
 @app.route("/")
 def home():
-    categories = fetch_categories()
-    return render_template("index.html", categories=categories, gold_purity_map=GOLD_PURITY_MAP)
+    return render_template("index.html", categories=CATEGORY_TITLES, gold_purity_map=GOLD_PURITY_MAP)
 
 @app.route("/add-product", methods=["POST"])
 def add_product():
@@ -62,24 +52,20 @@ def add_product():
         price = request.form.get("price")
         sale_price = request.form.get("sale_price", "0")
 
-        # Получаем имя категории и slug
         product_name, slug_base = CATEGORY_TITLES.get(category_id, ("Qızıl məhsul", "qizil-mehsul"))
-
-        # Выбираем случайное описание
         description_template = random.choice(DESCRIPTION_TEMPLATES.get(category_id, ["Yeni qızıl məhsul."]))
         description = description_template.format(weight=weight, gold_purity=GOLD_PURITY_MAP.get(gold_purity_id, "N/A"))
 
-        # Проверяем, загружено ли изображение
+        # Загрузка изображения в WooCommerce
         image_url = None
         if 'image' in request.files:
             image_file = request.files['image']
-            if image_file.filename != "":
+            if image_file.filename:
                 image_url = upload_image_to_wc(image_file)
 
         if not image_url:
             return jsonify({"status": "error", "message": "Ошибка загрузки изображения"}), 400
 
-        # Подготовка данных для товара
         product_data = {
             "name": product_name,
             "slug": f"{slug_base}-{random.randint(1000, 9999)}",
@@ -126,22 +112,31 @@ def add_product():
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
 
-# Функция загрузки изображений в WooCommerce
+# **Функция загрузки изображений в WooCommerce через API**
 def upload_image_to_wc(image_file):
-    url = f"{WC_API_URL}/media"
-    params = {
-        "consumer_key": WC_CONSUMER_KEY,
-        "consumer_secret": WC_CONSUMER_SECRET
-    }
-    files = {"file": (image_file.filename, image_file.read(), image_file.content_type)}
-    headers = {"Content-Disposition": f"attachment; filename={image_file.filename}"}
-    
-    response = requests.post(url, files=files, params=params, headers=headers)
+    try:
+        url = WC_MEDIA_URL
+        params = {
+            "consumer_key": WC_CONSUMER_KEY,
+            "consumer_secret": WC_CONSUMER_SECRET
+        }
+        files = {
+            "file": (image_file.filename, image_file.stream, image_file.content_type)
+        }
+        headers = {
+            "Content-Disposition": f"attachment; filename={image_file.filename}",
+            "Content-Type": image_file.content_type
+        }
 
-    if response.status_code == 201:
-        return response.json().get("source_url")
-    else:
-        print("Ошибка загрузки изображения:", response.text)
+        response = requests.post(url, files=files, params=params, headers=headers)
+
+        if response.status_code == 201:
+            return response.json().get("source_url")
+        else:
+            print(f"Ошибка загрузки изображения: {response.text}")
+            return None
+    except Exception as e:
+        print(f"Ошибка при отправке изображения: {e}")
         return None
 
 if __name__ == "__main__":
