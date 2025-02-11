@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Добавить товар</title>
+    <title>Добавление товара</title>
     <style>
         body {
             font-family: Arial, sans-serif;
@@ -31,9 +31,9 @@
             border: 1px solid #ccc;
             border-radius: 5px;
         }
-        .image-upload-box {
+        .upload-box {
             width: 100%;
-            height: 180px;
+            height: 160px;
             border: 2px dashed #ddd;
             display: flex;
             align-items: center;
@@ -42,14 +42,14 @@
             cursor: pointer;
             position: relative;
         }
-        .image-upload-box img {
+        .upload-box img, .upload-box video {
             max-width: 100%;
             max-height: 140px;
             display: none;
             margin-top: 10px;
             border-radius: 5px;
         }
-        .remove-image {
+        .remove-media {
             display: none;
             margin-top: 5px;
             color: red;
@@ -60,10 +60,12 @@
             background: #28a745;
             color: white;
             border: none;
-            padding: 10px;
+            padding: 15px;
             width: 100%;
             border-radius: 5px;
             cursor: pointer;
+            font-size: 16px;
+            margin-top: 20px;
         }
         button:hover {
             background: #218838;
@@ -100,11 +102,19 @@
             <input type="number" step="0.01" id="sale_price" name="sale_price">
 
             <label>Изображение товара:</label>
-            <div class="image-upload-box" onclick="document.getElementById('image').click();">
+            <div class="upload-box" onclick="document.getElementById('image').click();">
                 <p>📷 Нажмите, чтобы загрузить фото</p>
                 <input type="file" id="image" name="image" accept="image/*" style="display: none;">
                 <img id="previewImage" alt="Превью изображения">
-                <span class="remove-image" onclick="removeImage()">Удалить фото</span>
+                <span class="remove-media" onclick="removeImage()">Удалить фото</span>
+            </div>
+
+            <label>Видео товара:</label>
+            <div class="upload-box" onclick="document.getElementById('video').click();">
+                <p>🎥 Нажмите, чтобы загрузить видео</p>
+                <input type="file" id="video" name="video" accept="video/mp4,video/ogg,video/webm" style="display: none;">
+                <video id="previewVideo" controls></video>
+                <span class="remove-media" onclick="removeVideo()">Удалить видео</span>
             </div>
 
             <button type="submit">Добавить товар</button>
@@ -120,7 +130,7 @@
                     const previewImage = document.getElementById("previewImage");
                     previewImage.src = e.target.result;
                     previewImage.style.display = "block";
-                    document.querySelector(".remove-image").style.display = "block";
+                    document.querySelector(".remove-media").style.display = "block";
                 };
                 reader.readAsDataURL(file);
             }
@@ -129,7 +139,27 @@
         function removeImage() {
             document.getElementById("image").value = "";
             document.getElementById("previewImage").style.display = "none";
-            document.querySelector(".remove-image").style.display = "none";
+            document.querySelector(".remove-media").style.display = "none";
+        }
+
+        document.getElementById("video").addEventListener("change", function(event) {
+            const file = event.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    const previewVideo = document.getElementById("previewVideo");
+                    previewVideo.src = e.target.result;
+                    previewVideo.style.display = "block";
+                    document.querySelectorAll(".remove-media")[1].style.display = "block";
+                };
+                reader.readAsDataURL(file);
+            }
+        });
+
+        function removeVideo() {
+            document.getElementById("video").value = "";
+            document.getElementById("previewVideo").style.display = "none";
+            document.querySelectorAll(".remove-media")[1].style.display = "none";
         }
     </script>
 </body>
