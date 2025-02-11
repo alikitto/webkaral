@@ -25,14 +25,14 @@ CATEGORY_TITLES = {
     "144": ("Qızıl dəst komplekt", "qizil-komplet-dest")
 }
 
-# Описания для товаров (случайный выбор)
+# Описания товаров (случайный выбор)
 DESCRIPTION_TEMPLATES = {
     "126": [
         "🔹 Yeni qızıl üzük modeli. Zərif dizaynı ilə gündəlik və xüsusi günlər üçün ideal seçim! ✨",
         "💍 Zövqlü dizayn və yüksək keyfiyyət! Bu unikal qızıl üzük zərifliyi və incəliyi ilə seçilir. ✨",
         "✨ Qızılın əbədi gözəlliyi! Zəriflik, incəlik və yüksək keyfiyyət – bu qızıl üzük hər anınızı daha xüsusi edəcək."
     ],
-    "132": ["Yeni qızıl sırğa modeli. Çəkisi: {weight}, Əyarı: {gold_purity}"],
+    "132": ["Yeni qızıl sırğa modeli. Çəkisi: {weight}g, Əyarı: {gold_purity}"],
     "140": ["Yeni qızıl sep modeli."],
     "138": ["Yeni qızıl qolbaq modeli."],
     "144": ["Yeni qızıl komplekt."]
@@ -66,15 +66,17 @@ def add_product():
         product_name, slug_base = CATEGORY_TITLES.get(category_id, ("Qızıl məhsul", "qizil-mehsul"))
 
         # Выбираем случайное описание
-        description_template = DESCRIPTION_TEMPLATES.get(category_id, ["Yeni qızıl məhsul."])[0]
+        description_template = random.choice(DESCRIPTION_TEMPLATES.get(category_id, ["Yeni qızıl məhsul."]))
         description = description_template.format(weight=weight, gold_purity=GOLD_PURITY_MAP.get(gold_purity_id, "N/A"))
 
         # Обработка загруженного изображения
+        image_url = None
         if 'image' in request.files:
             image_file = request.files['image']
             image_url = upload_image_to_wc(image_file)
-        else:
-            image_url = "https://karal.az/wp-content/uploads/2020/01/20200109_113139.jpg"
+
+        if not image_url:
+            return jsonify({"status": "error", "message": "Ошибка загрузки изображения"}), 400
 
         # Подготовка данных для товара
         product_data = {
@@ -92,6 +94,12 @@ def add_product():
                     "options": [GOLD_PURITY_MAP.get(gold_purity_id, "N/A")],
                     "visible": True,
                     "variation": False
+                }
+            ],
+            "meta_data": [
+                {
+                    "key": "_weight",
+                    "value": f"{weight} g"
                 }
             ]
         }
@@ -129,7 +137,7 @@ def upload_image_to_wc(image_file):
 
     if response.status_code == 201:
         return response.json().get("source_url")
-    return "https://karal.az/wp-content/uploads/2020/01/20200109_113139.jpg"
+    return None
 
 if __name__ == "__main__":
     app.run(debug=True, host="0.0.0.0", port=8080)
