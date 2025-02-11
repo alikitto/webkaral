@@ -2,6 +2,7 @@ from flask import Flask, render_template, request, jsonify
 import requests
 import os
 import random
+import base64
 
 app = Flask(__name__)
 
@@ -120,15 +121,24 @@ def upload_image_to_wc(image_file):
             "consumer_key": WC_CONSUMER_KEY,
             "consumer_secret": WC_CONSUMER_SECRET
         }
-        files = {
-            "file": (image_file.filename, image_file.stream, image_file.content_type)
-        }
+
+        # Читаем файл в base64
+        image_data = image_file.read()
+        encoded_image = base64.b64encode(image_data).decode("utf-8")
+
         headers = {
-            "Content-Disposition": f"attachment; filename={image_file.filename}",
-            "Content-Type": image_file.content_type
+            "Content-Type": "application/json"
         }
 
-        response = requests.post(url, files=files, params=params, headers=headers)
+        media_data = {
+            "title": image_file.filename,
+            "media_type": "image",
+            "post": 0,  # Не привязывать к конкретному посту
+            "description": "Загружено через API",
+            "source_url": encoded_image
+        }
+
+        response = requests.post(url, json=media_data, params=params, headers=headers)
 
         if response.status_code == 201:
             return response.json().get("source_url")
