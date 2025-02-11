@@ -69,11 +69,12 @@ def add_product():
         description_template = random.choice(DESCRIPTION_TEMPLATES.get(category_id, ["Yeni qızıl məhsul."]))
         description = description_template.format(weight=weight, gold_purity=GOLD_PURITY_MAP.get(gold_purity_id, "N/A"))
 
-        # Обработка загруженного изображения
+        # Проверяем, загружено ли изображение
         image_url = None
         if 'image' in request.files:
             image_file = request.files['image']
-            image_url = upload_image_to_wc(image_file)
+            if image_file.filename != "":
+                image_url = upload_image_to_wc(image_file)
 
         if not image_url:
             return jsonify({"status": "error", "message": "Ошибка загрузки изображения"}), 400
@@ -133,11 +134,15 @@ def upload_image_to_wc(image_file):
         "consumer_secret": WC_CONSUMER_SECRET
     }
     files = {"file": (image_file.filename, image_file.read(), image_file.content_type)}
-    response = requests.post(url, files=files, params=params)
+    headers = {"Content-Disposition": f"attachment; filename={image_file.filename}"}
+    
+    response = requests.post(url, files=files, params=params, headers=headers)
 
     if response.status_code == 201:
         return response.json().get("source_url")
-    return None
+    else:
+        print("Ошибка загрузки изображения:", response.text)
+        return None
 
 if __name__ == "__main__":
     app.run(debug=True, host="0.0.0.0", port=8080)
