@@ -2,6 +2,7 @@ from flask import Flask, render_template, request, jsonify
 import requests
 import os
 import random
+import base64
 
 app = Flask(__name__)
 
@@ -10,6 +11,9 @@ WC_API_URL = os.getenv("WC_API_URL", "https://karal.az/wp-json/wc/v3")
 WC_MEDIA_URL = os.getenv("WC_MEDIA_URL", "https://karal.az/wp-json/wp/v2/media")
 WC_CONSUMER_KEY = os.getenv("WC_CONSUMER_KEY")
 WC_CONSUMER_SECRET = os.getenv("WC_CONSUMER_SECRET")
+
+# Авторизация для API
+AUTH = (WC_CONSUMER_KEY, WC_CONSUMER_SECRET)
 
 # Пробы золота с ID
 GOLD_PURITY_MAP = {
@@ -92,11 +96,7 @@ def add_product():
         }
 
         url = f"{WC_API_URL}/products"
-        params = {
-            "consumer_key": WC_CONSUMER_KEY,
-            "consumer_secret": WC_CONSUMER_SECRET
-        }
-        response = requests.post(url, json=product_data, params=params)
+        response = requests.post(url, json=product_data, auth=AUTH)
 
         if response.status_code == 201:
             product_id = response.json().get("id")
@@ -117,21 +117,18 @@ def add_product():
 def upload_image_to_wc(image_file):
     try:
         url = WC_MEDIA_URL
-        params = {
-            "consumer_key": WC_CONSUMER_KEY,
-            "consumer_secret": WC_CONSUMER_SECRET
-        }
 
         headers = {
             "Content-Disposition": f"attachment; filename={image_file.filename}",
-            "Content-Type": image_file.mimetype
+            "Content-Type": image_file.mimetype,
+            "Authorization": "Basic " + base64.b64encode(f"{WC_CONSUMER_KEY}:{WC_CONSUMER_SECRET}".encode()).decode()
         }
 
         files = {
             "file": (image_file.filename, image_file.stream, image_file.mimetype)
         }
 
-        response = requests.post(url, headers=headers, files=files, params=params)
+        response = requests.post(url, headers=headers, files=files)
 
         if response.status_code == 201:
             return response.json().get("source_url")  # 🖼 **Ссылка на загруженное изображение**
