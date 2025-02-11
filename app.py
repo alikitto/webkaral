@@ -11,14 +11,16 @@ WC_API_URL = os.getenv("WC_API_URL", "https://karal.az/wp-json/wc/v3")
 WC_CONSUMER_KEY = os.getenv("WC_CONSUMER_KEY")
 WC_CONSUMER_SECRET = os.getenv("WC_CONSUMER_SECRET")
 
-# WordPress API данные (для загрузки медиафайлов)
+# WordPress API данные (для загрузки изображений и видео)
 WP_USERNAME = os.getenv("WP_USERNAME", "alikitto")
 WP_PASSWORD = os.getenv("WP_PASSWORD", "HsbD0gjVhsj0Fb1KXrMx4nLQ")
 WP_MEDIA_URL = "https://karal.az/wp-json/wp/v2/media"
 
 # Авторизация для WordPress API
 auth = base64.b64encode(f"{WP_USERNAME}:{WP_PASSWORD}".encode()).decode()
-HEADERS = {"Authorization": f"Basic {auth}"}
+HEADERS = {
+    "Authorization": f"Basic {auth}"
+}
 
 # Категории товаров
 CATEGORY_DATA = {
@@ -42,17 +44,15 @@ RING_DESCRIPTIONS = [
     "✨ Qızılın əbədi gözəlliyi! Zəriflik, incəlik və yüksək keyfiyyət – bu qızıl üzük hər anınızı daha xüsusi edəcək."
 ]
 
-# Функция загрузки файла (изображение или видео) в WordPress
+# Функция загрузки файла (изображения или видео)
 def upload_media(file):
     """ Загружает файл в медиатеку WordPress и возвращает URL """
     files = {"file": (file.filename, file.stream, file.content_type)}
     response = requests.post(WP_MEDIA_URL, headers=HEADERS, files=files)
 
     if response.status_code == 201:
-        media_url = response.json().get("source_url")
-        return media_url
-    else:
-        return None
+        return response.json().get("source_url")
+    return None
 
 # Главная страница
 @app.route("/")
@@ -91,7 +91,7 @@ def add_product():
         if not image_url:
             return jsonify({"status": "error", "message": "❌ Ошибка загрузки изображения"}), 400
 
-        # Загружаем видео (если есть)
+        # Загружаем видео
         video_url = upload_media(video) if video else None
 
         # Данные для WooCommerce API
@@ -106,17 +106,20 @@ def add_product():
             "images": [{"src": image_url}],
             "attributes": [
                 {
-                    "id": 2,
-                    "options": [gold_purity],
+                    "id": 2,  # ID атрибута Əyar
+                    "options": [gold_purity],  # Передаем текст
                     "visible": True,
                     "variation": False
                 }
             ],
             "meta_data": [
-                {"key": "_weight", "value": weight},
-                {"key": "_product_video", "value": video_url} if video_url else None
+                {"key": "_weight", "value": weight}  # Вес
             ]
         }
+
+        # Если есть видео, добавляем его в meta_data
+        if video_url:
+            product_data["meta_data"].append({"key": "_product_video", "value": video_url})
 
         # Отправляем товар в WooCommerce
         url = f"{WC_API_URL}/products"
