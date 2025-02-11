@@ -3,13 +3,12 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Добавление товара в WooCommerce</title>
+    <title>Добавление товара</title>
     <style>
         body { font-family: Arial, sans-serif; max-width: 600px; margin: auto; padding: 20px; }
         label { display: block; margin-top: 10px; }
         input, select { width: 100%; padding: 8px; margin-top: 5px; }
         button { margin-top: 15px; padding: 10px; width: 100%; background: #008CBA; color: white; border: none; cursor: pointer; }
-        button:disabled { background: #ccc; }
         .hidden { display: none; }
         .preloader { display: none; text-align: center; font-size: 18px; color: green; }
         .success { color: green; font-weight: bold; }
@@ -74,7 +73,7 @@
                 preloader.style.display = "none";
 
                 if (response.ok) {
-                    responseMessage.textContent = `✅ ${result.message}. Ссылка на товар: ${result.url}`;
+                    responseMessage.innerHTML = `✅ ${result.message}. <br><a href="${result.url}" target="_blank">Ссылка на товар</a>`;
                     responseMessage.classList.remove("hidden", "error");
                     responseMessage.classList.add("success");
                     this.reset();
