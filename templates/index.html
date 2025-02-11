@@ -3,66 +3,66 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Добавление товара</title>
+    <title>Добавить товар</title>
     <style>
-        body { font-family: Arial, sans-serif; max-width: 600px; margin: auto; padding: 20px; }
-        label { display: block; margin-top: 10px; }
-        input, select { width: 100%; padding: 8px; margin-top: 5px; }
-        button { margin-top: 15px; padding: 10px; width: 100%; background: #008CBA; color: white; border: none; cursor: pointer; }
-        .hidden { display: none; }
-        .preloader { display: none; text-align: center; font-size: 18px; color: green; }
-        .success { color: green; font-weight: bold; }
-        .error { color: red; font-weight: bold; }
+        body { font-family: Arial, sans-serif; padding: 20px; }
+        .container { max-width: 500px; margin: auto; }
+        .preloader { display: none; text-align: center; margin-top: 10px; }
+        .menu { display: flex; justify-content: space-around; margin-bottom: 20px; }
+        .menu button { padding: 10px; cursor: pointer; }
     </style>
 </head>
 <body>
-    <h1>Добавление товара</h1>
+    <div class="container">
+        <div class="menu">
+            <button onclick="location.reload()">Добавить новый товар</button>
+            <button onclick="window.location='/products'">Список товаров</button>
+        </div>
+        
+        <h1>Добавление товара</h1>
+        <form id="productForm" action="/add-product" method="POST" enctype="multipart/form-data">
+            <label>Категория:</label>
+            <select name="category" required>
+                <option value="126">Qızıl üzüklər</option>
+                <option value="132">Qızıl sırqalar</option>
+                <option value="140">Qızıl seplər</option>
+                <option value="138">Qızıl qolbaqlar</option>
+                <option value="144">Qızıl komplektlər və dəstlər</option>
+            </select><br><br>
 
-    <form id="productForm" enctype="multipart/form-data">
-        <label for="category">Категория:</label>
-        <select id="category" name="category" required>
-            <option value="126">Qızıl üzüklər</option>
-            <option value="132">Qızıl sırqalar</option>
-            <option value="140">Qızıl seplər</option>
-            <option value="138">Qızıl qolbaqlar</option>
-            <option value="144">Qızıl komplektlər və dəstlər</option>
-        </select>
+            <label>Вес (граммы):</label>
+            <input type="number" step="0.01" name="weight" required><br><br>
 
-        <label for="weight">Вес (граммы):</label>
-        <input type="number" step="0.01" id="weight" name="weight" required>
+            <label>Проба золота:</label>
+            <select name="gold_purity" required>
+                <option value="105">585 (14K)</option>
+                <option value="106">750 (18K)</option>
+            </select><br><br>
 
-        <label for="gold_purity">Проба золота:</label>
-        <select id="gold_purity" name="gold_purity" required>
-            <option value="105">585 (14K)</option>
-            <option value="106">750 (18K)</option>
-        </select>
+            <label>Цена (AZN):</label>
+            <input type="number" step="0.01" name="price" required><br><br>
 
-        <label for="price">Цена (AZN):</label>
-        <input type="number" step="0.01" id="price" name="price" required>
+            <label>Цена со скидкой (AZN):</label>
+            <input type="number" step="0.01" name="sale_price"><br><br>
 
-        <label for="sale_price">Цена со скидкой (AZN):</label>
-        <input type="number" step="0.01" id="sale_price" name="sale_price">
+            <label>Изображение товара:</label>
+            <input type="file" name="image" accept="image/*"><br><br>
 
-        <label for="image">Изображение товара:</label>
-        <input type="file" id="image" name="image" accept="image/*" required>
+            <button type="submit">Добавить</button>
+        </form>
 
-        <button type="submit">Добавить товар</button>
-    </form>
-
-    <p id="responseMessage" class="hidden"></p>
-    <div class="preloader">⏳ Загрузка...</div>
+        <div class="preloader">⏳ Идет загрузка...</div>
+        <p id="responseMessage"></p>
+    </div>
 
     <script>
         document.getElementById("productForm").addEventListener("submit", async function(event) {
             event.preventDefault();
+            document.querySelector(".preloader").style.display = "block";
             
             const formData = new FormData(this);
             const responseMessage = document.getElementById("responseMessage");
-            const preloader = document.querySelector(".preloader");
-
-            preloader.style.display = "block";
-            responseMessage.classList.add("hidden");
-
+            
             try {
                 const response = await fetch("/add-product", {
                     method: "POST",
@@ -70,23 +70,16 @@
                 });
 
                 const result = await response.json();
-                preloader.style.display = "none";
-
+                document.querySelector(".preloader").style.display = "none";
+                
                 if (response.ok) {
-                    responseMessage.innerHTML = `✅ ${result.message}. <br><a href="${result.url}" target="_blank">Ссылка на товар</a>`;
-                    responseMessage.classList.remove("hidden", "error");
-                    responseMessage.classList.add("success");
+                    responseMessage.innerHTML = `<span style='color:green'>✔️ ${result.message} <a href='${result.url}' target='_blank'>Перейти</a></span>`;
                     this.reset();
                 } else {
-                    responseMessage.textContent = result.message || "❌ Ошибка при добавлении товара.";
-                    responseMessage.classList.remove("hidden", "success");
-                    responseMessage.classList.add("error");
+                    responseMessage.innerHTML = `<span style='color:red'>❌ Ошибка: ${result.message}</span>`;
                 }
             } catch (error) {
-                preloader.style.display = "none";
-                responseMessage.textContent = "❌ Ошибка соединения.";
-                responseMessage.classList.remove("hidden", "success");
-                responseMessage.classList.add("error");
+                responseMessage.innerHTML = `<span style='color:red'>❌ Ошибка соединения.</span>`;
             }
         });
     </script>
