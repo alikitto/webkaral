@@ -56,7 +56,7 @@ def add_product():
         description_template = random.choice(DESCRIPTION_TEMPLATES.get(category_id, ["Yeni qızıl məhsul."]))
         description = description_template.format(weight=weight, gold_purity=GOLD_PURITY_MAP.get(gold_purity_id, "N/A"))
 
-        # 📌 **Загрузка изображения в WooCommerce**
+        # **📌 Загружаем изображение в WooCommerce**
         image_url = None
         if 'image' in request.files:
             image_file = request.files['image']
@@ -122,11 +122,16 @@ def upload_image_to_wc(image_file):
             "consumer_secret": WC_CONSUMER_SECRET
         }
 
+        headers = {
+            "Content-Disposition": f"attachment; filename={image_file.filename}",
+            "Content-Type": image_file.mimetype
+        }
+
         files = {
             "file": (image_file.filename, image_file.stream, image_file.mimetype)
         }
 
-        response = requests.post(url, files=files, params=params)
+        response = requests.post(url, headers=headers, files=files, params=params)
 
         if response.status_code == 201:
             return response.json().get("source_url")  # 🖼 **Ссылка на загруженное изображение**
