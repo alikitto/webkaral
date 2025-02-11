@@ -22,13 +22,19 @@ HEADERS = {
     "Authorization": f"Basic {auth}"
 }
 
-# Категории товаров (чтобы генерировать название и slug)
+# Категории товаров
 CATEGORY_DATA = {
     "126": {"name": "Qızıl üzük", "slug": "qizil-uzuk"},
     "132": {"name": "Qızıl sırğa", "slug": "qizil-sirqa"},
     "140": {"name": "Qızıl sep", "slug": "qizil-sep"},
     "138": {"name": "Qızıl qolbaq", "slug": "qizil-qolbaq"},
     "144": {"name": ["Qızıl dəst", "Qızıl komplekt"], "slug": "qizil-komplekt-dest"}
+}
+
+# Пробы золота (Əyar)
+GOLD_PURITY_MAP = {
+    "105": "585 (14K)",
+    "106": "750 (18K)"
 }
 
 # Возможные описания для Qızıl üzüklər
@@ -62,10 +68,13 @@ def add_product():
         # Получаем данные из формы
         category_id = request.form.get("category")
         weight = request.form.get("weight")
-        gold_purity = request.form.get("gold_purity")
+        gold_purity_id = request.form.get("gold_purity")  # Получаем ID пробы
         price = request.form.get("price")
         sale_price = request.form.get("sale_price", "0")
         image = request.files.get("image")
+
+        # Преобразуем ID пробы в текстовое значение
+        gold_purity = GOLD_PURITY_MAP.get(gold_purity_id, "585 (14K)")
 
         # Генерируем название и slug
         category_info = CATEGORY_DATA.get(category_id, {})
@@ -96,7 +105,7 @@ def add_product():
             "attributes": [
                 {
                     "id": 2,  # ID атрибута Əyar
-                    "options": [gold_purity],  # Проба золота (585 или 750)
+                    "options": [gold_purity],  # Передаем текст, а не ID
                     "visible": True,
                     "variation": False
                 }
