@@ -119,6 +119,7 @@ def upload_image_to_wc(image_file):
         url = WC_MEDIA_URL
 
         headers = {
+            "User-Agent": "Mozilla/5.0",
             "Content-Disposition": f"attachment; filename={image_file.filename}",
             "Content-Type": image_file.mimetype,
             "Authorization": "Basic " + base64.b64encode(f"{WC_CONSUMER_KEY}:{WC_CONSUMER_SECRET}".encode()).decode()
@@ -129,6 +130,8 @@ def upload_image_to_wc(image_file):
         }
 
         response = requests.post(url, headers=headers, files=files, auth=AUTH)
+
+        print(f"📢 Ответ от WooCommerce: {response.status_code}, {response.text}")  # 👈 Логирование ответа
 
         if response.status_code == 201:
             return response.json().get("source_url")  # 🖼 **Ссылка на загруженное изображение**
