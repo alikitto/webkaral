@@ -26,7 +26,7 @@ CATEGORY_DATA = {
     "132": {"name": "Qızıl sırğa", "slug": "qizil-sirqa"},
     "140": {"name": "Qızıl sep", "slug": "qizil-sep"},
     "138": {"name": "Qızıl qolbaq", "slug": "qizil-qolbaq"},
-    "144": {"name": ["Qızıl dəst", "Qızıl komplekt"], "slug": "qizil-komplekt-dest"},
+    "144": {"name": ["Qızıl dəst", "Qızıl komplekt"], "slug": "qizil-komplekt-dest"}
 }
 
 # Пробы золота (Əyar)
@@ -42,15 +42,17 @@ RING_DESCRIPTIONS = [
     "✨ Qızılın əbədi gözəlliyi! Zəriflik, incəlik və yüksək keyfiyyət – bu qızıl üzük hər anınızı daha xüsusi edəcək."
 ]
 
-# Функция загрузки изображения или видео в WordPress
+# Функция загрузки файла (изображение или видео) в WordPress
 def upload_media(file):
-    """ Загружает медиафайл (изображение или видео) в медиатеку WordPress и возвращает URL """
+    """ Загружает файл в медиатеку WordPress и возвращает URL """
     files = {"file": (file.filename, file.stream, file.content_type)}
     response = requests.post(WP_MEDIA_URL, headers=HEADERS, files=files)
 
     if response.status_code == 201:
-        return response.json().get("source_url")
-    return None
+        media_url = response.json().get("source_url")
+        return media_url
+    else:
+        return None
 
 # Главная страница
 @app.route("/")
@@ -64,11 +66,11 @@ def add_product():
         # Получаем данные из формы
         category_id = request.form.get("category")
         weight = request.form.get("weight")
-        gold_purity_id = request.form.get("gold_purity")  # Получаем ID пробы
+        gold_purity_id = request.form.get("gold_purity")
         price = request.form.get("price")
         sale_price = request.form.get("sale_price", "0")
         image = request.files.get("image")
-        video = request.files.get("video")
+        video = request.files.get("video")  # Получаем видео
 
         # Преобразуем ID пробы в текстовое значение
         gold_purity = GOLD_PURITY_MAP.get(gold_purity_id, "585 (14K)")
@@ -85,11 +87,11 @@ def add_product():
             description = f"Yeni {product_name} modeli. Çəkisi: {weight}g, Əyarı: {gold_purity}"
 
         # Загружаем изображение
-        image_url = upload_media(image) if image else None
+        image_url = upload_media(image)
         if not image_url:
             return jsonify({"status": "error", "message": "❌ Ошибка загрузки изображения"}), 400
 
-        # Загружаем видео
+        # Загружаем видео (если есть)
         video_url = upload_media(video) if video else None
 
         # Данные для WooCommerce API
@@ -104,15 +106,15 @@ def add_product():
             "images": [{"src": image_url}],
             "attributes": [
                 {
-                    "id": 2,  # ID атрибута Əyar
-                    "options": [gold_purity],  # Передаем текст, а не ID
+                    "id": 2,
+                    "options": [gold_purity],
                     "visible": True,
                     "variation": False
                 }
             ],
             "meta_data": [
-                {"key": "_weight", "value": weight},  # Вес
-                {"key": "video_url", "value": video_url} if video_url else None,  # Ссылка на видео
+                {"key": "_weight", "value": weight},
+                {"key": "_product_video", "value": video_url} if video_url else None
             ]
         }
 
