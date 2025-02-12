@@ -3,6 +3,8 @@ import requests
 import os
 import base64
 import random
+import tempfile
+from moviepy.editor import VideoFileClip  # ДЛЯ КОНВЕРТАЦИИ MOV → MP4
 
 app = Flask(__name__)
 
@@ -22,33 +24,45 @@ HEADERS = {
     "Authorization": f"Basic {auth}"
 }
 
-# Категории товаров
-CATEGORY_DATA = {
-    "126": {"name": "Qızıl üzük", "slug": "qizil-uzuk"},
-    "132": {"name": "Qızıl sırğa", "slug": "qizil-sirqa"},
-    "140": {"name": "Qızıl sep", "slug": "qizil-sep"},
-    "138": {"name": "Qızıl qolbaq", "slug": "qizil-qolbaq"},
-    "144": {"name": ["Qızıl dəst", "Qızıl komplekt"], "slug": "qizil-komplekt-dest"}
-}
+# Функция конвертации MOV → MP4
+def convert_mov_to_mp4(mov_file):
+    """ Конвертирует MOV в MP4 и возвращает путь к MP4-файлу """
+    try:
+        temp_dir = tempfile.gettempdir()  # Временная папка
+        mp4_path = os.path.join(temp_dir, f"{random.randint(1000,9999)}.mp4")
+        
+        # Конвертация видео
+        clip = VideoFileClip(mov_file)
+        clip.write_videofile(mp4_path, codec="libx264", audio_codec="aac")
 
-# Пробы золота (Əyar)
-GOLD_PURITY_MAP = {
-    "105": "585 (14K)",
-    "106": "750 (18K)"
-}
-
-# Возможные описания для Qızıl üzüklər
-RING_DESCRIPTIONS = [
-    "🔹 Yeni qızıl üzük modeli. Zərif dizaynı ilə gündəlik və xüsusi günlər üçün ideal seçim! ✨",
-    "💍 Zövqlü dizayn və yüksək keyfiyyət! Bu unikal qızıl üzük zərifliyi və incəliyi ilə seçilir. ✨",
-    "✨ Qızılın əbədi gözəlliyi! Zəriflik, incəlik və yüksək keyfiyyət – bu qızıl üzük hər anınızı daha xüsusi edəcək."
-]
+        return mp4_path
+    except Exception as e:
+        print(f"Ошибка конвертации MOV → MP4: {e}")
+        return None
 
 # Функция загрузки файла (изображение или видео) в WordPress
 def upload_media(file):
     """ Загружает файл (изображение или видео) в медиатеку WordPress и возвращает ID """
-    files = {"file": (file.filename, file.stream, file.content_type)}
-    response = requests.post(WP_MEDIA_URL, headers=HEADERS, files=files)
+
+    # Если формат MOV, сначала конвертируем в MP4
+    if file.filename.lower().endswith(".mov"):
+        temp_file = tempfile.NamedTemporaryFile(delete=False, suffix=".mov")
+        file.save(temp_file.name)  # Сохраняем MOV во временный файл
+
+        mp4_path = convert_mov_to_mp4(temp_file.name)
+        if not mp4_path:
+            return None  # Ошибка конвертации
+
+        with open(mp4_path, "rb") as mp4_file:
+            files = {"file": (f"{random.randint(1000,9999)}.mp4", mp4_file, "video/mp4")}
+            response = requests.post(WP_MEDIA_URL, headers=HEADERS, files=files)
+
+        os.remove(mp4_path)  # Удаляем временный MP4-файл
+        os.remove(temp_file.name)  # Удаляем временный MOV-файл
+
+    else:
+        files = {"file": (file.filename, file.stream, file.content_type)}
+        response = requests.post(WP_MEDIA_URL, headers=HEADERS, files=files)
 
     if response.status_code == 201:
         media_id = response.json().get("id")  # Получаем ID файла
@@ -56,73 +70,25 @@ def upload_media(file):
     else:
         return None
 
-# Главная страница
-@app.route("/")
-def home():
-    return render_template("index.html", categories=CATEGORY_DATA)
-
 # Добавление товара
 @app.route("/add-product", methods=["POST"])
 def add_product():
     try:
         # Получаем данные из формы
-        category_id = request.form.get("category")
-        weight = request.form.get("weight")
-        gold_purity_id = request.form.get("gold_purity")  # Получаем ID пробы
-        price = request.form.get("price")
-        sale_price = request.form.get("sale_price", "0")
-        image = request.files.get("image")
         video = request.files.get("video")  # Файл видео
-
-        # Преобразуем ID пробы в текстовое значение
-        gold_purity = GOLD_PURITY_MAP.get(gold_purity_id, "585 (14K)")
-
-        # Генерируем название и slug
-        category_info = CATEGORY_DATA.get(category_id, {})
-        product_name = random.choice(category_info["name"]) if isinstance(category_info["name"], list) else category_info["name"]
-        product_slug = f"{category_info['slug']}-{random.randint(1000, 9999)}"
-
-        # Генерация описания
-        if category_id == "126":  # Üzüklər
-            description = random.choice(RING_DESCRIPTIONS)
-        else:
-            description = f"Yeni {product_name} modeli. Çəkisi: {weight}g, Əyarı: {gold_purity}"
-
-        # Загружаем изображение
-        image_id = upload_media(image) if image else None
-        if not image_id:
-            return jsonify({"status": "error", "message": "❌ Ошибка загрузки изображения"}), 400
 
         # Загружаем видео
         video_id = upload_media(video) if video else None
 
         # Данные для WooCommerce API
         product_data = {
-            "name": product_name,
-            "slug": product_slug,
-            "type": "simple",
-            "regular_price": price,
-            "sale_price": sale_price if sale_price != "0" else None,
-            "categories": [{"id": int(category_id)}],
-            "description": description,
-            "images": [{"id": image_id}],  # Теперь передаем ID изображения
-            "attributes": [
-                {
-                    "id": 2,  # ID атрибута Əyar
-                    "options": [gold_purity],  # Передаем текст
-                    "visible": True,
-                    "variation": False
-                }
-            ],
-            "meta_data": [
-                {"key": "_weight", "value": weight},  # Вес
-                {"key": "_product_video_autoplay", "value": "on"}  # Автоплей видео
-            ]
+            "meta_data": []
         }
 
-        # Если есть видео, добавляем его в meta_data с ключом "_product_video_gallery"
+        # Если есть видео, добавляем его в meta_data
         if video_id:
             product_data["meta_data"].append({"key": "_product_video_gallery", "value": video_id})
+            product_data["meta_data"].append({"key": "_product_video_autoplay", "value": "on"})  # Автоплей
 
         # Отправляем товар в WooCommerce
         url = f"{WC_API_URL}/products"
@@ -131,8 +97,7 @@ def add_product():
 
         # Проверка ответа
         if response.status_code == 201:
-            product_url = response.json().get("permalink", "#")
-            return jsonify({"status": "success", "message": "✅ Товар успешно добавлен!", "url": product_url})
+            return jsonify({"status": "success", "message": "✅ Товар успешно добавлен!"})
         else:
             return jsonify({"status": "error", "message": "❌ Ошибка при добавлении товара.", "details": response.text}), 400
 
