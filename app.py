@@ -1,10 +1,17 @@
 from flask import Flask, render_template, request, jsonify
 import requests
-import os
 import base64
 import random
 import tempfile
 from moviepy.editor import VideoFileClip  # ДЛЯ КОНВЕРТАЦИИ MOV → MP4
+import os
+
+try:
+    import moviepy.editor
+    print("✅ MoviePy установлен!")
+except ModuleNotFoundError:
+    print("❌ MoviePy НЕ установлен! Устанавливаем...")
+    os.system("pip install moviepy ffmpeg imageio[ffmpeg] numpy")
 
 app = Flask(__name__)
 
