@@ -115,7 +115,8 @@ def add_product():
                 }
             ],
             "meta_data": [
-                {"key": "_weight", "value": weight}  # Вес
+                {"key": "_weight", "value": weight},  # Вес
+                {"key": "_product_video_autoplay", "value": "on"}  # Автоплей видео
             ]
         }
 
