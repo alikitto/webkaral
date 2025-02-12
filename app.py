@@ -46,13 +46,13 @@ RING_DESCRIPTIONS = [
 
 # Функция загрузки файла (изображение или видео) в WordPress
 def upload_media(file):
-    """ Загружает файл (изображение или видео) в медиатеку WordPress и возвращает URL """
+    """ Загружает файл (изображение или видео) в медиатеку WordPress и возвращает ID """
     files = {"file": (file.filename, file.stream, file.content_type)}
     response = requests.post(WP_MEDIA_URL, headers=HEADERS, files=files)
 
     if response.status_code == 201:
-        media_url = response.json().get("source_url")
-        return media_url
+        media_id = response.json().get("id")  # Получаем ID файла
+        return media_id
     else:
         return None
 
@@ -89,12 +89,12 @@ def add_product():
             description = f"Yeni {product_name} modeli. Çəkisi: {weight}g, Əyarı: {gold_purity}"
 
         # Загружаем изображение
-        image_url = upload_media(image) if image else None
-        if not image_url:
+        image_id = upload_media(image) if image else None
+        if not image_id:
             return jsonify({"status": "error", "message": "❌ Ошибка загрузки изображения"}), 400
 
         # Загружаем видео
-        video_url = upload_media(video) if video else None
+        video_id = upload_media(video) if video else None
 
         # Данные для WooCommerce API
         product_data = {
@@ -105,7 +105,7 @@ def add_product():
             "sale_price": sale_price if sale_price != "0" else None,
             "categories": [{"id": int(category_id)}],
             "description": description,
-            "images": [{"src": image_url}],
+            "images": [{"id": image_id}],  # Теперь передаем ID изображения
             "attributes": [
                 {
                     "id": 2,  # ID атрибута Əyar
@@ -119,9 +119,9 @@ def add_product():
             ]
         }
 
-        # Если есть видео, добавляем его в meta_data с ключом "video_url"
-        if video_url:
-            product_data["meta_data"].append({"key": "video_url", "value": video_url})
+        # Если есть видео, добавляем его в meta_data с ключом "_product_video_gallery"
+        if video_id:
+            product_data["meta_data"].append({"key": "_product_video_gallery", "value": video_id})
 
         # Отправляем товар в WooCommerce
         url = f"{WC_API_URL}/products"
