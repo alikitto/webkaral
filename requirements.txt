@@ -3,5 +3,7 @@ woocommerce
 gunicorn
 requests
 python-dotenv
-imageio[ffmpeg]
 moviepy
+ffmpeg
+imageio[ffmpeg]
+numpy
