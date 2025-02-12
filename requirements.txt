@@ -3,3 +3,4 @@ woocommerce
 gunicorn
 requests
 python-dotenv
+moviepy
