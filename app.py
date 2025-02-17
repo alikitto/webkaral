@@ -3,7 +3,7 @@ import requests
 import os
 import base64
 import random
-import moviepy.editor as mp
+import moviepy as mp
 
 app = Flask(__name__)
 
