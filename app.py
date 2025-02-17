@@ -24,55 +24,88 @@ auth = base64.b64encode(f"{WP_USERNAME}:{WP_PASSWORD}".encode()).decode()
 HEADERS = {"Authorization": f"Basic {auth}"}
 
 # Настройки видео
-RESOLUTION = 720  # Размер видео (1:1)
+RESOLUTION = 720  # Размер кадра (1:1)
 BITRATE = "2500k"  # Оптимальный битрейт
 
 def upload_media(file, filename=None):
     """Загрузка файла в WordPress"""
     if not file:
-        return None
+        return None, None
     filename = filename or file.filename
     print(f"🔼 Загружаем файл: {filename}")
     files = {"file": (filename, file, "video/mp4" if filename.endswith(".mp4") else file.content_type)}
     response = requests.post(WP_MEDIA_URL, headers=HEADERS, files=files)
     if response.status_code == 201:
         media_id = response.json().get("id")
-        return media_id
+        media_url = response.json().get("source_url")
+        return media_id, media_url
     else:
         print(f"⚠️ Ошибка загрузки: {response.text}")
-        return None
+        return None, None
 
-def convert_and_crop_video(video, output_filename):
-    """Конвертация MOV → MP4 с обрезкой 1:1"""
+def convert_and_crop_video(video_url, output_filename):
+    """Фоновая загрузка, конвертация и обрезка видео"""
     try:
-        temp_input = tempfile.NamedTemporaryFile(delete=False, suffix=".mov")
         temp_output = os.path.join(tempfile.gettempdir(), output_filename)
-        video.save(temp_input.name)
+
+        # Скачиваем MOV по URL
+        print(f"⬇️ Скачиваем MOV: {video_url}")
+        temp_input = tempfile.NamedTemporaryFile(delete=False, suffix=".mov")
+        with requests.get(video_url, stream=True) as r:
+            with open(temp_input.name, "wb") as f:
+                for chunk in r.iter_content(1024):
+                    f.write(chunk)
+
+        print(f"🎥 Начинаем конвертацию {temp_input.name} → {temp_output}")
+
+        # Получаем параметры видео
         probe = ffmpeg.probe(temp_input.name)
         video_stream = next((stream for stream in probe["streams"] if stream["codec_type"] == "video"), None)
         width, height = int(video_stream["width"]), int(video_stream["height"])
+
+        # Обрезка видео в 1:1
         crop_size = min(width, height)
         x_offset = (width - crop_size) // 2
         y_offset = (height - crop_size) // 2
+
+        # FFmpeg конвертация
         ffmpeg.input(temp_input.name).filter(
             "crop", crop_size, crop_size, x_offset, y_offset
         ).filter(
             "scale", RESOLUTION, RESOLUTION
         ).output(
             temp_output, vcodec="libx264", acodec="aac", bitrate=BITRATE
-        ).run_async()
+        ).run(overwrite_output=True)
+
+        print(f"✅ Конвертация завершена! Файл: {temp_output}")
         return temp_output
     except Exception as e:
         print(f"❌ Ошибка конвертации: {e}")
         return None
 
-def async_convert_and_upload(video, output_filename, product_id):
+def async_convert_and_upload(video_url, output_filename, product_id):
     """Фоновая обработка видео"""
-    converted_video_path = convert_and_crop_video(video, output_filename)
+    converted_video_path = convert_and_crop_video(video_url, output_filename)
     if converted_video_path:
         with open(converted_video_path, "rb") as converted_video:
-            video_id = upload_media(converted_video, filename=output_filename)
-            print(f"✅ Видео загружено! ID: {video_id}")
+            video_id, video_url = upload_media(converted_video, filename=output_filename)
+            print(f"✅ Видео загружено! {video_url}")
+
+            # Обновляем товар, добавляя новое видео
+            update_product_video(product_id, video_id)
+
+def update_product_video(product_id, video_id):
+    """Обновление товара, добавление видео"""
+    url = f"{WC_API_URL}/products/{product_id}"
+    params = {"consumer_key": WC_CONSUMER_KEY, "consumer_secret": WC_CONSUMER_SECRET}
+    data = {
+        "meta_data": [{"key": "_product_video_gallery", "value": video_id}]
+    }
+    response = requests.put(url, json=data, params=params)
+    if response.status_code == 200:
+        print(f"🔄 Видео добавлено в товар ID: {product_id}")
+    else:
+        print(f"⚠️ Ошибка обновления товара: {response.text}")
 
 @app.route("/")
 def home():
@@ -87,11 +120,17 @@ def add_product():
         sale_price = request.form.get("sale_price", "0")
         image = request.files.get("image")
         video = request.files.get("video")
+
         if not category_id or not weight or not price:
             return jsonify({"status": "error", "message": "❌ Обязательные поля не заполнены"}), 400
+
         product_name = f"Product-{random.randint(1000, 9999)}"
         product_slug = f"product-{random.randint(1000, 9999)}"
-        image_id = upload_media(image) if image else None
+
+        # Загружаем изображение
+        image_id, _ = upload_media(image) if image else (None, None)
+
+        # Создаём товар в WooCommerce
         product_data = {
             "name": product_name,
             "slug": product_slug,
@@ -105,11 +144,18 @@ def add_product():
         url = f"{WC_API_URL}/products"
         params = {"consumer_key": WC_CONSUMER_KEY, "consumer_secret": WC_CONSUMER_SECRET}
         response = requests.post(url, json=product_data, params=params)
+
         if response.status_code == 201:
             product_id = response.json().get("id")
-            if video:
+
+            # Загружаем MOV видео в WordPress
+            video_id, video_url = upload_media(video) if video else (None, None)
+
+            # Фоновая обработка и загрузка MP4
+            if video_url:
                 output_filename = f"{product_name.replace(' ', '_')}-{product_slug}.mp4"
-                threading.Thread(target=async_convert_and_upload, args=(video, output_filename, product_id)).start()
+                threading.Thread(target=async_convert_and_upload, args=(video_url, output_filename, product_id)).start()
+
             return jsonify({"status": "success", "message": "✅ Товар добавлен!"})
         else:
             return jsonify({"status": "error", "message": "❌ Ошибка при добавлении товара."}), 400
