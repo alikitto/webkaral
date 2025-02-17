@@ -38,15 +38,16 @@ GOLD_PURITY_MAP = {
 }
 
 # Функция загрузки файла в WordPress
-def upload_media(file):
+def upload_media(file, filename=None):
     """ Загружает файл (изображение или видео) в медиатеку WordPress и возвращает ID """
     if not file:
         print("Ошибка: Файл отсутствует!")
         return None
 
-    print(f"Загружаем файл: {file.filename}")
+    filename = filename or file.filename  # Используем переданное имя или берём из загруженного файла
+    print(f"Загружаем файл: {filename}")
 
-    files = {"file": (file.filename, file.stream, file.content_type)}
+    files = {"file": (filename, file, "video/mp4" if filename.endswith(".mp4") else file.content_type)}
     response = requests.post(WP_MEDIA_URL, headers=HEADERS, files=files)
 
     if response.status_code == 201:
@@ -121,7 +122,7 @@ def add_product():
                 converted_video_path = convert_mov_to_mp4(video)
                 if converted_video_path:
                     with open(converted_video_path, "rb") as converted_video:
-                        video_id = upload_media(converted_video)
+                        video_id = upload_media(converted_video, filename="converted_video.mp4")
             else:
                 video_id = upload_media(video)
 
