@@ -22,7 +22,7 @@ WP_MEDIA_URL = "https://karal.az/wp-json/wp/v2/media"
 auth = base64.b64encode(f"{WP_USERNAME}:{WP_PASSWORD}".encode()).decode()
 HEADERS = {"Authorization": f"Basic {auth}"}
 
-# Категории товаров (ВОЗМОЖНО, УДАЛИЛОСЬ В ТВОЕМ КОДЕ)
+# Категории товаров
 CATEGORY_DATA = {
     "126": {"name": "Qızıl üzük", "slug": "qizil-uzuk"},
     "132": {"name": "Qızıl sırğa", "slug": "qizil-sirqa"},
@@ -42,8 +42,8 @@ RESOLUTION = 720  # Размер видео (720x720, 1:1)
 BITRATE = "2000k"  # Оптимальный битрейт
 THREADS = 2  # Количество потоков для FFmpeg
 
-# Функция загрузки файла в WordPress
 def upload_media(file, filename=None):
+    """Загружает файл в WordPress и возвращает ID"""
     if not file:
         return None
 
@@ -64,17 +64,19 @@ def upload_media(file, filename=None):
         print(f"Ошибка загрузки файла: {response.text}")
         return None
 
-# Функция конвертации + обрезки видео 1:1
-def fast_convert_and_crop_video(video, output_filename):
-    """Быстрая конвертация MOV → MP4 с обрезкой в 1:1 (720x720)"""
+def process_video(video, output_filename):
+    """Обрабатывает видео: 
+    - Если `mov`, конвертирует в `mp4` + центрирует 1:1.
+    - Если `mp4`, просто центрирует 1:1.
+    """
     try:
-        temp_input = tempfile.NamedTemporaryFile(delete=False, suffix=".mov")
+        temp_input = tempfile.NamedTemporaryFile(delete=False, suffix=os.path.splitext(video.filename)[1])
         temp_output = os.path.join(tempfile.gettempdir(), output_filename)
 
         print(f"Сохраняем видео {video.filename} во временный файл {temp_input.name}")
         video.save(temp_input.name)
 
-        print("Начинаем конвертацию с обрезкой...")
+        print("Начинаем обработку видео...")
 
         # Читаем параметры видео
         probe = ffmpeg.probe(temp_input.name)
@@ -85,25 +87,34 @@ def fast_convert_and_crop_video(video, output_filename):
 
         width, height = int(video_stream["width"]), int(video_stream["height"])
 
-        # Определяем параметры обрезки
+        # Определяем параметры обрезки (центрирование)
         crop_size = min(width, height)
         x_offset = (width - crop_size) // 2
         y_offset = (height - crop_size) // 2
 
-        # FFmpeg команда для конвертации + обрезки в 1:1 + сжатия
-        ffmpeg.input(temp_input.name).filter(
-            "crop", crop_size, crop_size, x_offset, y_offset
-        ).filter(
-            "scale", RESOLUTION, RESOLUTION
-        ).output(
-            temp_output, vcodec="libx264", acodec="aac", bitrate=BITRATE, threads=THREADS, preset="fast"
-        ).run(overwrite_output=True)
+        # Если видео уже mp4, просто обрезаем, если mov – конвертируем
+        if video.filename.lower().endswith(".mp4"):
+            ffmpeg.input(temp_input.name).filter(
+                "crop", crop_size, crop_size, x_offset, y_offset
+            ).filter(
+                "scale", RESOLUTION, RESOLUTION
+            ).output(
+                temp_output, vcodec="libx264", acodec="aac", bitrate=BITRATE, threads=THREADS, preset="fast"
+            ).run(overwrite_output=True)
+        else:
+            ffmpeg.input(temp_input.name).filter(
+                "crop", crop_size, crop_size, x_offset, y_offset
+            ).filter(
+                "scale", RESOLUTION, RESOLUTION
+            ).output(
+                temp_output, vcodec="libx264", acodec="aac", bitrate=BITRATE, threads=THREADS, preset="fast"
+            ).run(overwrite_output=True)
 
-        print(f"Конвертация завершена! Файл сохранён: {temp_output}")
+        print(f"Обработка завершена! Файл сохранён: {temp_output}")
 
         return temp_output
     except Exception as e:
-        print(f"Ошибка конвертации видео: {e}")
+        print(f"Ошибка обработки видео: {e}")
         return None
 
 @app.route("/")
@@ -141,13 +152,10 @@ def add_product():
         if video:
             output_filename = f"{product_name.replace(' ', '_')}-{product_slug}.mp4"
 
-            if video.filename.lower().endswith(".mov"):
-                converted_video_path = fast_convert_and_crop_video(video, output_filename)
-                if converted_video_path:
-                    with open(converted_video_path, "rb") as converted_video:
-                        video_id = upload_media(converted_video, filename=output_filename)
-            else:
-                video_id = upload_media(video, filename=output_filename)
+            processed_video_path = process_video(video, output_filename)
+            if processed_video_path:
+                with open(processed_video_path, "rb") as processed_video:
+                    video_id = upload_media(processed_video, filename=output_filename)
 
         product_data = {
             "name": product_name,
@@ -174,11 +182,7 @@ def add_product():
         params = {"consumer_key": WC_CONSUMER_KEY, "consumer_secret": WC_CONSUMER_SECRET}
         response = requests.post(url, json=product_data, params=params)
 
-        if response.status_code == 201:
-            product_url = response.json().get("permalink", "#")
-            return jsonify({"status": "success", "message": "✅ Товар успешно добавлен!", "url": product_url})
-        else:
-            return jsonify({"status": "error", "message": "❌ Ошибка при добавлении товара.", "details": response.text}), 400
+        return jsonify({"status": "success", "message": "✅ Товар успешно добавлен!"})
 
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
