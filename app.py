@@ -4,7 +4,7 @@ import os
 import base64
 import random
 import tempfile
-from moviepy.editor import VideoFileClip
+from moviepy import VideoFileClip
 
 app = Flask(__name__)
 
