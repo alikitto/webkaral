@@ -13,7 +13,7 @@ WC_API_URL = os.getenv("WC_API_URL", "https://karal.az/wp-json/wc/v3")
 WC_CONSUMER_KEY = os.getenv("WC_CONSUMER_KEY")
 WC_CONSUMER_SECRET = os.getenv("WC_CONSUMER_SECRET")
 
-# WordPress API данные (для загрузки изображений и видео)
+# WordPress API данные
 WP_USERNAME = os.getenv("WP_USERNAME", "alikitto")
 WP_PASSWORD = os.getenv("WP_PASSWORD", "HsbD0gjVhsj0Fb1KXrMx4nLQ")
 WP_MEDIA_URL = "https://karal.az/wp-json/wp/v2/media"
@@ -40,7 +40,7 @@ GOLD_PURITY_MAP = {
 # Настройки видео
 RESOLUTION = 720  # Размер видео (720x720, 1:1)
 BITRATE = "2000k"  # Оптимальный битрейт
-THREADS = 2  # Количество потоков для FFmpeg
+THREADS = 2  # Количество потоков
 
 def upload_media(file, filename=None):
     """Загружает файл в WordPress и возвращает ID"""
@@ -51,10 +51,7 @@ def upload_media(file, filename=None):
     print(f"Загружаем файл: {filename}")
 
     files = {"file": (filename, file, "video/mp4" if filename.endswith(".mp4") else file.content_type)}
-    headers = HEADERS.copy()
-    headers["Accept-Encoding"] = "gzip"
-
-    response = requests.post(WP_MEDIA_URL, headers=headers, files=files, stream=True)
+    response = requests.post(WP_MEDIA_URL, headers=HEADERS, files=files)
 
     if response.status_code == 201:
         media_id = response.json().get("id")
@@ -65,7 +62,7 @@ def upload_media(file, filename=None):
         return None
 
 def process_video(video, output_filename):
-    """Обрабатывает видео: 
+    """Обрабатывает видео:
     - Если `mov`, конвертирует в `mp4` + центрирует 1:1.
     - Если `mp4`, просто центрирует 1:1.
     """
@@ -92,23 +89,14 @@ def process_video(video, output_filename):
         x_offset = (width - crop_size) // 2
         y_offset = (height - crop_size) // 2
 
-        # Если видео уже mp4, просто обрезаем, если mov – конвертируем
-        if video.filename.lower().endswith(".mp4"):
-            ffmpeg.input(temp_input.name).filter(
-                "crop", crop_size, crop_size, x_offset, y_offset
-            ).filter(
-                "scale", RESOLUTION, RESOLUTION
-            ).output(
-                temp_output, vcodec="libx264", acodec="aac", bitrate=BITRATE, threads=THREADS, preset="fast"
-            ).run(overwrite_output=True)
-        else:
-            ffmpeg.input(temp_input.name).filter(
-                "crop", crop_size, crop_size, x_offset, y_offset
-            ).filter(
-                "scale", RESOLUTION, RESOLUTION
-            ).output(
-                temp_output, vcodec="libx264", acodec="aac", bitrate=BITRATE, threads=THREADS, preset="fast"
-            ).run(overwrite_output=True)
+        # Обрезаем и центрируем
+        ffmpeg.input(temp_input.name).filter(
+            "crop", crop_size, crop_size, x_offset, y_offset
+        ).filter(
+            "scale", RESOLUTION, RESOLUTION
+        ).output(
+            temp_output, vcodec="libx264", acodec="aac", bitrate=BITRATE, threads=THREADS, preset="fast"
+        ).run(overwrite_output=True)
 
         print(f"Обработка завершена! Файл сохранён: {temp_output}")
 
