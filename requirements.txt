@@ -4,3 +4,4 @@ gunicorn
 requests
 python-dotenv
 ffmpeg-python  # ← Убедись, что этот пакет есть
+pillow
