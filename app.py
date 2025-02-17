@@ -3,7 +3,7 @@ import requests
 import os
 import base64
 import random
-import moviepy as mp
+import moviepy.editor as mp
 
 app = Flask(__name__)
 
@@ -19,9 +19,7 @@ WP_MEDIA_URL = "https://karal.az/wp-json/wp/v2/media"
 
 # Авторизация для WordPress API
 auth = base64.b64encode(f"{WP_USERNAME}:{WP_PASSWORD}".encode()).decode()
-HEADERS = {
-    "Authorization": f"Basic {auth}"
-}
+HEADERS = {"Authorization": f"Basic {auth}"}
 
 # Категории товаров
 CATEGORY_DATA = {
@@ -38,30 +36,16 @@ GOLD_PURITY_MAP = {
     "106": "750 (18K)"
 }
 
-# Возможные описания для Qızıl üzüklər
-RING_DESCRIPTIONS = [
-    "🔹 Yeni qızıl üzük modeli. Zərif dizaynı ilə gündəlik və xüsusi günlər üçün ideal seçim! ✨",
-    "💍 Zövqlü dizayn və yüksək keyfiyyət! Bu unikal qızıl üzük zərifliyi və incəliyi ilə seçilir. ✨",
-    "✨ Qızılın əbədi gözəlliyi! Zəriflik, incəlik və yüksək keyfiyyət – bu qızıl üzük hər anınızı daha xüsusi edəcək."
-]
-
 # Функция загрузки медиа (изображения или видео)
 def upload_media(file):
     """ Загружает файл в WordPress и возвращает ID """
-    if not file:
-        print("Ошибка: Файл отсутствует!")
-        return None
-
-    if not hasattr(file, "filename"):
-        print("Ошибка: У файла нет атрибута 'filename'")
+    if not file or not hasattr(file, "filename"):
+        print("Ошибка: Файл отсутствует или неверный формат!")
         return None
 
     print(f"Отправка файла {file.filename} на сервер WordPress...")
-
     files = {"file": (file.filename, file.stream, file.content_type)}
     response = requests.post(WP_MEDIA_URL, headers=HEADERS, files=files)
-
-    print(f"Ответ сервера WordPress: {response.status_code}, {response.text}")
 
     if response.status_code == 201:
         media_id = response.json().get("id")
@@ -83,7 +67,6 @@ def convert_mov_to_mp4(video):
 
         print("Начало конвертации MOV → MP4...")
 
-        # Конвертация
         clip = mp.VideoFileClip(temp_input)
         clip.write_videofile(temp_output, codec="libx264", audio_codec="aac")
 
@@ -103,6 +86,7 @@ def home():
 @app.route("/add-product", methods=["POST"])
 def add_product():
     try:
+        # Получаем данные из формы
         category_id = request.form.get("category")
         weight = request.form.get("weight")
         gold_purity_id = request.form.get("gold_purity")
@@ -111,7 +95,19 @@ def add_product():
         image = request.files.get("image")
         video = request.files.get("video")
 
-        print(f"Получены данные: Категория: {category_id}, Вес: {weight}, Цена: {price}")
+        # Проверяем валидность данных
+        if not category_id or not weight or not price:
+            return jsonify({"status": "error", "message": "❌ Обязательные поля не заполнены"}), 400
+
+        # Преобразуем ID пробы в текстовое значение
+        gold_purity = GOLD_PURITY_MAP.get(gold_purity_id, "585 (14K)")
+
+        # Генерируем название и slug
+        category_info = CATEGORY_DATA.get(category_id, {})
+        product_name = random.choice(category_info["name"]) if isinstance(category_info["name"], list) else category_info["name"]
+        product_slug = f"{category_info['slug']}-{random.randint(1000, 9999)}"
+
+        print(f"Создаём товар: {product_name}, Slug: {product_slug}, Вес: {weight}, Цена: {price}")
 
         # Загружаем изображение
         image_id = upload_media(image) if image else None
@@ -121,8 +117,6 @@ def add_product():
         # Проверка типа видео и конвертация, если это MOV
         video_id = None
         if video:
-            print(f"Загружено видео: {video.filename}")
-
             if video.filename.lower().endswith(".mov"):
                 converted_video_path = convert_mov_to_mp4(video)
                 if converted_video_path:
@@ -133,14 +127,17 @@ def add_product():
 
         # Данные для WooCommerce
         product_data = {
-            "name": "Тестовый продукт",
-            "slug": "test-product",
+            "name": product_name,
+            "slug": product_slug,
             "type": "simple",
             "regular_price": price,
             "sale_price": sale_price if sale_price != "0" else None,
             "categories": [{"id": int(category_id)}],
-            "description": "Тестовое описание",
+            "description": f"Yeni {product_name} modeli. Çəkisi: {weight}g, Əyarı: {gold_purity}",
             "images": [{"id": image_id}],
+            "attributes": [
+                {"id": 2, "options": [gold_purity], "visible": True, "variation": False}
+            ],
             "meta_data": [
                 {"key": "_weight", "value": weight},
                 {"key": "_product_video_autoplay", "value": "on"}
@@ -150,14 +147,10 @@ def add_product():
         if video_id:
             product_data["meta_data"].append({"key": "_product_video_gallery", "value": video_id})
 
-        print(f"Отправка данных в WooCommerce: {product_data}")
-
         # Отправляем товар в WooCommerce
         url = f"{WC_API_URL}/products"
         params = {"consumer_key": WC_CONSUMER_KEY, "consumer_secret": WC_CONSUMER_SECRET}
         response = requests.post(url, json=product_data, params=params)
-
-        print(f"Ответ сервера WooCommerce: {response.status_code}, {response.text}")
 
         if response.status_code == 201:
             product_url = response.json().get("permalink", "#")
