@@ -9,66 +9,57 @@ import ffmpeg
 
 app = Flask(__name__)
 
-# WooCommerce API данные
+# WooCommerce API
 WC_API_URL = os.getenv("WC_API_URL", "https://karal.az/wp-json/wc/v3")
 WC_CONSUMER_KEY = os.getenv("WC_CONSUMER_KEY")
 WC_CONSUMER_SECRET = os.getenv("WC_CONSUMER_SECRET")
 
-# WordPress API данные
+# WordPress API
 WP_USERNAME = os.getenv("WP_USERNAME", "alikitto")
 WP_PASSWORD = os.getenv("WP_PASSWORD", "HsbD0gjVhsj0Fb1KXrMx4nLQ")
 WP_MEDIA_URL = "https://karal.az/wp-json/wp/v2/media"
 
-# Авторизация для WordPress API
+# Авторизация
 auth = base64.b64encode(f"{WP_USERNAME}:{WP_PASSWORD}".encode()).decode()
 HEADERS = {"Authorization": f"Basic {auth}"}
 
 # Настройки видео
-RESOLUTION = 720  # Размер кадра (1:1)
-BITRATE = "2500k"  # Оптимальный битрейт
+RESOLUTION = 720  # 1:1
+BITRATE = "2500k"
 
 def upload_media(file, filename=None):
     """Загрузка файла в WordPress"""
     if not file:
         return None, None
     filename = filename or file.filename
-    print(f"🔼 Загружаем файл: {filename}")
     files = {"file": (filename, file, "video/mp4" if filename.endswith(".mp4") else file.content_type)}
     response = requests.post(WP_MEDIA_URL, headers=HEADERS, files=files)
     if response.status_code == 201:
-        media_id = response.json().get("id")
-        media_url = response.json().get("source_url")
-        return media_id, media_url
-    else:
-        print(f"⚠️ Ошибка загрузки: {response.text}")
-        return None, None
+        return response.json().get("id"), response.json().get("source_url")
+    return None, None
 
 def convert_and_crop_video(video_url, output_filename):
-    """Фоновая загрузка, конвертация и обрезка видео"""
+    """Конвертация видео"""
     try:
         temp_output = os.path.join(tempfile.gettempdir(), output_filename)
-
-        # Скачиваем MOV по URL
-        print(f"⬇️ Скачиваем MOV: {video_url}")
         temp_input = tempfile.NamedTemporaryFile(delete=False, suffix=".mov")
+
+        # Скачиваем MOV
         with requests.get(video_url, stream=True) as r:
             with open(temp_input.name, "wb") as f:
                 for chunk in r.iter_content(1024):
                     f.write(chunk)
 
-        print(f"🎥 Начинаем конвертацию {temp_input.name} → {temp_output}")
-
-        # Получаем параметры видео
+        # Проверяем параметры видео
         probe = ffmpeg.probe(temp_input.name)
         video_stream = next((stream for stream in probe["streams"] if stream["codec_type"] == "video"), None)
         width, height = int(video_stream["width"]), int(video_stream["height"])
 
-        # Обрезка видео в 1:1
+        # Обрезка видео
         crop_size = min(width, height)
         x_offset = (width - crop_size) // 2
         y_offset = (height - crop_size) // 2
 
-        # FFmpeg конвертация
         ffmpeg.input(temp_input.name).filter(
             "crop", crop_size, crop_size, x_offset, y_offset
         ).filter(
@@ -77,10 +68,9 @@ def convert_and_crop_video(video_url, output_filename):
             temp_output, vcodec="libx264", acodec="aac", bitrate=BITRATE
         ).run(overwrite_output=True)
 
-        print(f"✅ Конвертация завершена! Файл: {temp_output}")
         return temp_output
     except Exception as e:
-        print(f"❌ Ошибка конвертации: {e}")
+        print(f"Ошибка конвертации: {e}")
         return None
 
 def async_convert_and_upload(video_url, output_filename, product_id):
@@ -89,23 +79,14 @@ def async_convert_and_upload(video_url, output_filename, product_id):
     if converted_video_path:
         with open(converted_video_path, "rb") as converted_video:
             video_id, video_url = upload_media(converted_video, filename=output_filename)
-            print(f"✅ Видео загружено! {video_url}")
-
-            # Обновляем товар, добавляя новое видео
             update_product_video(product_id, video_id)
 
 def update_product_video(product_id, video_id):
-    """Обновление товара, добавление видео"""
+    """Обновление товара с MP4"""
     url = f"{WC_API_URL}/products/{product_id}"
     params = {"consumer_key": WC_CONSUMER_KEY, "consumer_secret": WC_CONSUMER_SECRET}
-    data = {
-        "meta_data": [{"key": "_product_video_gallery", "value": video_id}]
-    }
-    response = requests.put(url, json=data, params=params)
-    if response.status_code == 200:
-        print(f"🔄 Видео добавлено в товар ID: {product_id}")
-    else:
-        print(f"⚠️ Ошибка обновления товара: {response.text}")
+    data = {"meta_data": [{"key": "_product_video_gallery", "value": video_id}]}
+    requests.put(url, json=data, params=params)
 
 @app.route("/")
 def home():
@@ -117,7 +98,6 @@ def add_product():
         category_id = request.form.get("category")
         weight = request.form.get("weight")
         price = request.form.get("price")
-        sale_price = request.form.get("sale_price", "0")
         image = request.files.get("image")
         video = request.files.get("video")
 
@@ -136,7 +116,6 @@ def add_product():
             "slug": product_slug,
             "type": "simple",
             "regular_price": price,
-            "sale_price": sale_price if sale_price != "0" else None,
             "categories": [{"id": int(category_id)}],
             "description": f"Товар {product_name}, вес {weight}г.",
             "images": [{"id": image_id}],
@@ -148,10 +127,10 @@ def add_product():
         if response.status_code == 201:
             product_id = response.json().get("id")
 
-            # Загружаем MOV видео в WordPress
+            # Загружаем MOV
             video_id, video_url = upload_media(video) if video else (None, None)
 
-            # Фоновая обработка и загрузка MP4
+            # Запускаем конвертацию в фоне
             if video_url:
                 output_filename = f"{product_name.replace(' ', '_')}-{product_slug}.mp4"
                 threading.Thread(target=async_convert_and_upload, args=(video_url, output_filename, product_id)).start()
