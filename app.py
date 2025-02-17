@@ -3,6 +3,7 @@ import requests
 import os
 import base64
 import random
+import tempfile
 import moviepy as mp
 
 app = Flask(__name__)
@@ -36,20 +37,21 @@ GOLD_PURITY_MAP = {
     "106": "750 (18K)"
 }
 
-# Функция загрузки медиа (изображения или видео)
+# Функция загрузки файла в WordPress
 def upload_media(file):
-    """ Загружает файл в WordPress и возвращает ID """
-    if not file or not hasattr(file, "filename"):
-        print("Ошибка: Файл отсутствует или неверный формат!")
+    """ Загружает файл (изображение или видео) в медиатеку WordPress и возвращает ID """
+    if not file:
+        print("Ошибка: Файл отсутствует!")
         return None
 
-    print(f"Отправка файла {file.filename} на сервер WordPress...")
+    print(f"Загружаем файл: {file.filename}")
+
     files = {"file": (file.filename, file.stream, file.content_type)}
     response = requests.post(WP_MEDIA_URL, headers=HEADERS, files=files)
 
     if response.status_code == 201:
         media_id = response.json().get("id")
-        print(f"Файл успешно загружен! ID: {media_id}")
+        print(f"Файл загружен успешно! ID: {media_id}")
         return media_id
     else:
         print(f"Ошибка загрузки файла: {response.text}")
@@ -59,17 +61,15 @@ def upload_media(file):
 def convert_mov_to_mp4(video):
     """ Конвертация MOV в MP4 """
     try:
-        temp_input = f"/tmp/{random.randint(1000, 9999)}.mov"
-        temp_output = temp_input.replace(".mov", ".mp4")
+        temp_input = tempfile.NamedTemporaryFile(delete=False, suffix=".mov")
+        temp_output = temp_input.name.replace(".mov", ".mp4")
 
-        print(f"Сохранение видео {video.filename} во временный файл {temp_input}")
-        video.save(temp_input)
+        print(f"Сохранение видео {video.filename} во временный файл {temp_input.name}")
+        video.save(temp_input.name)
 
         print("Начало конвертации MOV → MP4...")
-
-        clip = mp.VideoFileClip(temp_input)
+        clip = mp.VideoFileClip(temp_input.name)
         clip.write_videofile(temp_output, codec="libx264", audio_codec="aac")
-
         print(f"Конвертация завершена! Файл сохранён: {temp_output}")
 
         return temp_output
