@@ -1,17 +1,14 @@
-# Используем Python + FFMPEG
 FROM python:3.10
 
-# Устанавливаем зависимости
+# Устанавливаем ffmpeg
 RUN apt-get update && apt-get install -y ffmpeg
 
-# Создаём рабочую директорию
+# Устанавливаем зависимости
 WORKDIR /app
-
-# Копируем файлы проекта
-COPY . .
-
-# Устанавливаем Python-зависимости
+COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Запуск приложения
+# Копируем код
+COPY . .
+
 CMD ["gunicorn", "-b", "0.0.0.0:8080", "app:app"]
