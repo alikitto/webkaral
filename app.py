@@ -4,6 +4,7 @@ import os
 import base64
 import random
 import tempfile
+import shutil
 from moviepy import VideoFileClip
 
 app = Flask(__name__)
@@ -37,22 +38,21 @@ GOLD_PURITY_MAP = {
     "106": "750 (18K)"
 }
 
-# **Настройки видео**
+# Настройки видео
 VIDEO_SETTINGS = {
     "aspect_ratio": "9:16",  # Выбрать 9:16, 1:1 или 4:5
-    "resize_width": 720,  # Размер по ширине (для уменьшения)
-    "bitrate": "2500k",  # Битрейт (качество)
+    "resize_width": 720,  # Размер по ширине
+    "bitrate": "2500k",  # Битрейт
 }
 
-
-# Функция загрузки файла в WordPress
+# Функция загрузки медиа в WordPress
 def upload_media(file_path, filename):
     """Загружает файл (изображение или видео) в медиатеку WordPress и возвращает ID"""
     if not os.path.exists(file_path):
         print(f"Ошибка: Файл {file_path} не найден!")
         return None
 
-    print(f"Загружаем {filename} в WordPress...")
+    print(f"Загружаем {filename} в WordPress... ({file_path})")
     with open(file_path, "rb") as file:
         files = {"file": (filename, file, "video/mp4" if filename.endswith(".mp4") else "image/jpeg")}
         response = requests.post(WP_MEDIA_URL, headers=HEADERS, files=files)
@@ -65,30 +65,32 @@ def upload_media(file_path, filename):
         print(f"Ошибка загрузки файла: {response.text}")
         return None
 
-
-# Функция конвертации MOV → MP4 с выбором соотношения сторон
+# Функция конвертации MOV → MP4
 def convert_mov_to_mp4(video, output_filename):
-    """Конвертация MOV в MP4 с изменением размера и качества"""
+    """Конвертация MOV в MP4 с изменением размера"""
     try:
         temp_input = tempfile.NamedTemporaryFile(delete=False, suffix=".mov")
         temp_output = os.path.join(tempfile.gettempdir(), output_filename)
 
-        print(f"Сохранение видео {video.filename} во временный файл {temp_input.name}")
-        video.save(temp_input.name)
+        # Сохранение загруженного видео во временный файл
+        temp_input_path = temp_input.name
+        shutil.move(video.filename, temp_input_path)
+        print(f"Файл {video.filename} сохранён в {temp_input_path}")
 
-        print(f"Начало конвертации MOV → MP4... ({VIDEO_SETTINGS['resize_width']}px, {VIDEO_SETTINGS['bitrate']} битрейт)")
-        clip = VideoFileClip(temp_input.name)
+        # Открываем файл в MoviePy
+        print("Начало конвертации MOV → MP4...")
+        clip = VideoFileClip(temp_input_path)
 
         # **Выбор соотношения сторон**
         aspect_ratio = VIDEO_SETTINGS["aspect_ratio"]
         if aspect_ratio == "9:16":
-            clip = clip.resize(height=1080)  # Высота 1080p
+            clip = clip.resize(height=1080)
         elif aspect_ratio == "1:1":
             clip = clip.crop(x_center=clip.w / 2, width=min(clip.w, clip.h))
         elif aspect_ratio == "4:5":
             clip = clip.crop(y_center=clip.h / 2, height=clip.w * 5 / 4)
 
-        # **Сохранение с нужным битрейтом**
+        # Сохранение с нужным битрейтом
         clip.write_videofile(temp_output, codec="libx264", audio_codec="aac", bitrate=VIDEO_SETTINGS["bitrate"])
         print(f"Конвертация завершена! Файл сохранён: {temp_output}")
 
@@ -97,12 +99,10 @@ def convert_mov_to_mp4(video, output_filename):
         print(f"Ошибка конвертации видео: {e}")
         return None
 
-
 # Главная страница
 @app.route("/")
 def home():
     return render_template("index.html", categories=CATEGORY_DATA)
-
 
 # Добавление товара
 @app.route("/add-product", methods=["POST"])
@@ -124,20 +124,16 @@ def add_product():
         product_name = random.choice(category_info["name"]) if isinstance(category_info["name"], list) else category_info["name"]
         product_slug = f"{category_info['slug']}-{random.randint(1000, 9999)}"
 
-        print(f"Создаём товар: {product_name}, Slug: {product_slug}, Вес: {weight}, Цена: {price}")
+        print(f"Создаём товар: {product_name}, Slug: {product_slug}")
 
-        # **Загружаем изображение**
+        # Загружаем изображение
+        image_id = None
         if image:
             image_path = f"/tmp/{image.filename}"
             image.save(image_path)
             image_id = upload_media(image_path, image.filename)
-        else:
-            image_id = None
 
-        if not image_id:
-            return jsonify({"status": "error", "message": "❌ Ошибка загрузки изображения"}), 400
-
-        # **Загружаем видео**
+        # Загружаем видео
         video_id = None
         if video:
             video_filename = f"{product_name.replace(' ', '_')}-{product_slug}.mp4"
@@ -150,7 +146,7 @@ def add_product():
                 video.save(video_path)
                 video_id = upload_media(video_path, video_filename)
 
-        # **Формируем данные для WooCommerce**
+        # Формируем данные для WooCommerce
         product_data = {
             "name": product_name,
             "slug": product_slug,
@@ -159,33 +155,26 @@ def add_product():
             "sale_price": sale_price if sale_price != "0" else None,
             "categories": [{"id": int(category_id)}],
             "description": f"Yeni {product_name} modeli. Çəkisi: {weight}g, Əyarı: {gold_purity}",
-            "images": [{"id": image_id}],
-            "attributes": [
-                {"id": 2, "options": [gold_purity], "visible": True, "variation": False}
-            ],
-            "meta_data": [
-                {"key": "_weight", "value": weight},
-                {"key": "_product_video_autoplay", "value": "on"}
-            ]
+            "images": [{"id": image_id}] if image_id else [],
+            "attributes": [{"id": 2, "options": [gold_purity], "visible": True, "variation": False}],
+            "meta_data": [{"key": "_weight", "value": weight}, {"key": "_product_video_autoplay", "value": "on"}],
         }
 
         if video_id:
             product_data["meta_data"].append({"key": "_product_video_gallery", "value": video_id})
 
-        # **Отправляем товар в WooCommerce**
-        url = f"{WC_API_URL}/products"
-        params = {"consumer_key": WC_CONSUMER_KEY, "consumer_secret": WC_CONSUMER_SECRET}
-        response = requests.post(url, json=product_data, params=params)
+        response = requests.post(f"{WC_API_URL}/products", json=product_data, params={
+            "consumer_key": WC_CONSUMER_KEY,
+            "consumer_secret": WC_CONSUMER_SECRET
+        })
 
         if response.status_code == 201:
-            product_url = response.json().get("permalink", "#")
-            return jsonify({"status": "success", "message": "✅ Товар успешно добавлен!", "url": product_url})
+            return jsonify({"status": "success", "message": "✅ Товар успешно добавлен!", "url": response.json().get("permalink", "#")})
         else:
             return jsonify({"status": "error", "message": "❌ Ошибка при добавлении товара.", "details": response.text}), 400
 
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
-
 
 if __name__ == "__main__":
     app.run(debug=True, host="0.0.0.0", port=8080)
