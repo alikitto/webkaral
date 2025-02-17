@@ -1,2 +1,4 @@
 [phases.setup]
 nixPkgs = ["python311", "pip", "ffmpeg"]
+[start]
+cmd = "./start.sh"
