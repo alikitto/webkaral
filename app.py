@@ -42,7 +42,7 @@ GOLD_PURITY_MAP = {
 VIDEO_SETTINGS = {
     "aspect_ratio": "9:16",  # Выбрать 9:16, 1:1 или 4:5
     "resize_width": 720,  # Размер по ширине
-    "bitrate": "2500k",  # Битрейт
+    "bitrate": "1000k",  # Битрейт
 }
 
 # Функция загрузки медиа в WordPress
@@ -66,18 +66,17 @@ def upload_media(file_path, filename):
         return None
 
 # Функция конвертации MOV → MP4
-def convert_mov_to_mp4(video, output_filename):
+def convert_mov_to_mp4(video):
     """Конвертация MOV в MP4 с изменением размера"""
     try:
-        temp_input = tempfile.NamedTemporaryFile(delete=False, suffix=".mov")
-        temp_output = os.path.join(tempfile.gettempdir(), output_filename)
+        temp_input_path = os.path.join(tempfile.gettempdir(), video.filename)
+        temp_output_path = temp_input_path.replace(".mov", ".mp4")
 
-        # Сохранение загруженного видео во временный файл
-        temp_input_path = temp_input.name
-        shutil.move(video.filename, temp_input_path)
-        print(f"Файл {video.filename} сохранён в {temp_input_path}")
+        # **Сохранение загруженного видео во временную папку**
+        print(f"Сохраняем видео {video.filename} в {temp_input_path}")
+        video.save(temp_input_path)
 
-        # Открываем файл в MoviePy
+        # **Открываем файл в MoviePy**
         print("Начало конвертации MOV → MP4...")
         clip = VideoFileClip(temp_input_path)
 
@@ -90,11 +89,11 @@ def convert_mov_to_mp4(video, output_filename):
         elif aspect_ratio == "4:5":
             clip = clip.crop(y_center=clip.h / 2, height=clip.w * 5 / 4)
 
-        # Сохранение с нужным битрейтом
-        clip.write_videofile(temp_output, codec="libx264", audio_codec="aac", bitrate=VIDEO_SETTINGS["bitrate"])
-        print(f"Конвертация завершена! Файл сохранён: {temp_output}")
+        # **Сохранение с нужным битрейтом**
+        clip.write_videofile(temp_output_path, codec="libx264", audio_codec="aac", bitrate=VIDEO_SETTINGS["bitrate"])
+        print(f"Конвертация завершена! Файл сохранён: {temp_output_path}")
 
-        return temp_output
+        return temp_output_path
     except Exception as e:
         print(f"Ошибка конвертации видео: {e}")
         return None
@@ -129,7 +128,7 @@ def add_product():
         # Загружаем изображение
         image_id = None
         if image:
-            image_path = f"/tmp/{image.filename}"
+            image_path = os.path.join(tempfile.gettempdir(), image.filename)
             image.save(image_path)
             image_id = upload_media(image_path, image.filename)
 
@@ -138,11 +137,11 @@ def add_product():
         if video:
             video_filename = f"{product_name.replace(' ', '_')}-{product_slug}.mp4"
             if video.filename.lower().endswith(".mov"):
-                converted_video_path = convert_mov_to_mp4(video, video_filename)
+                converted_video_path = convert_mov_to_mp4(video)
                 if converted_video_path:
                     video_id = upload_media(converted_video_path, video_filename)
             else:
-                video_path = f"/tmp/{video.filename}"
+                video_path = os.path.join(tempfile.gettempdir(), video.filename)
                 video.save(video_path)
                 video_id = upload_media(video_path, video_filename)
 
