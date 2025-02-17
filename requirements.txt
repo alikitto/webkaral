@@ -3,6 +3,4 @@ woocommerce
 gunicorn
 requests
 python-dotenv
-moviepy
-imageio[ffmpeg]
-numpy
+ffmpeg-python  # ← Убедись, что этот пакет есть
