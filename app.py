@@ -4,7 +4,7 @@ import os
 import base64
 import random
 import tempfile
-from moviepy.editor import VideoFileClip
+from moviepy import VideoFileClip
 
 app = Flask(__name__)
 
@@ -41,7 +41,7 @@ GOLD_PURITY_MAP = {
 VIDEO_SETTINGS = {
     "aspect_ratio": "9:16",  # Выбрать 9:16, 1:1 или 4:5
     "resize_width": 720,  # Размер по ширине (для уменьшения)
-    "bitrate": "1000k",  # Битрейт (качество)
+    "bitrate": "2500k",  # Битрейт (качество)
 }
 
 
