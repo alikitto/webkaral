@@ -22,30 +22,14 @@ WP_MEDIA_URL = "https://karal.az/wp-json/wp/v2/media"
 auth = base64.b64encode(f"{WP_USERNAME}:{WP_PASSWORD}".encode()).decode()
 HEADERS = {"Authorization": f"Basic {auth}"}
 
-# Категории товаров
-CATEGORY_DATA = {
-    "126": {"name": "Qızıl üzük", "slug": "qizil-uzuk"},
-    "132": {"name": "Qızıl sırğa", "slug": "qizil-sirqa"},
-    "140": {"name": "Qızıl sep", "slug": "qizil-sep"},
-    "138": {"name": "Qızıl qolbaq", "slug": "qizil-qolbaq"},
-    "144": {"name": ["Qızıl dəst", "Qızıl komplekt"], "slug": "qizil-komplekt-dest"}
-}
-
-# Пробы золота (Əyar)
-GOLD_PURITY_MAP = {
-    "105": "585 (14K)",
-    "106": "750 (18K)"
-}
-
 # Настройки видео
 RESOLUTION = 720  # Размер видео (720x720, 1:1)
-BITRATE = "2500k"  # Оптимальный битрейт
+BITRATE = "2000k"  # Оптимальный битрейт (сбалансированное качество)
+THREADS = 2  # Количество потоков для FFmpeg
 
-
+# Функция загрузки файла в WordPress
 def upload_media(file, filename=None):
-    """Загружает файл (изображение или видео) в WordPress"""
     if not file:
-        print("Ошибка: Файл отсутствует!")
         return None
 
     filename = filename or file.filename
@@ -65,9 +49,9 @@ def upload_media(file, filename=None):
         print(f"Ошибка загрузки файла: {response.text}")
         return None
 
-
-def fast_convert_video(video, output_filename):
-    """Быстрая конвертация MOV → MP4 без перекодирования"""
+# Функция быстрой конвертации и обрезки видео 1:1
+def fast_convert_and_crop_video(video, output_filename):
+    """Быстрая конвертация MOV → MP4 с обрезкой в 1:1 (720x720)"""
     try:
         temp_input = tempfile.NamedTemporaryFile(delete=False, suffix=".mov")
         temp_output = os.path.join(tempfile.gettempdir(), output_filename)
@@ -75,10 +59,30 @@ def fast_convert_video(video, output_filename):
         print(f"Сохраняем видео {video.filename} во временный файл {temp_input.name}")
         video.save(temp_input.name)
 
-        print(f"Начинаем быструю конвертацию видео...")
+        print("Начинаем конвертацию с обрезкой...")
 
-        # FFmpeg - без перекодирования (если кодек h264/aac)
-        ffmpeg.input(temp_input.name).output(temp_output, vcodec="copy", acodec="copy").run(overwrite_output=True)
+        # Читаем параметры видео
+        probe = ffmpeg.probe(temp_input.name)
+        video_stream = next((stream for stream in probe["streams"] if stream["codec_type"] == "video"), None)
+
+        if not video_stream:
+            raise ValueError("Не найден видеопоток")
+
+        width, height = int(video_stream["width"]), int(video_stream["height"])
+
+        # Определяем параметры обрезки
+        crop_size = min(width, height)
+        x_offset = (width - crop_size) // 2
+        y_offset = (height - crop_size) // 2
+
+        # FFmpeg команда для конвертации + обрезки в 1:1 + сжатия
+        ffmpeg.input(temp_input.name).filter(
+            "crop", crop_size, crop_size, x_offset, y_offset
+        ).filter(
+            "scale", RESOLUTION, RESOLUTION
+        ).output(
+            temp_output, vcodec="libx264", acodec="aac", bitrate=BITRATE, threads=THREADS, preset="fast"
+        ).run(overwrite_output=True)
 
         print(f"Конвертация завершена! Файл сохранён: {temp_output}")
 
@@ -87,11 +91,9 @@ def fast_convert_video(video, output_filename):
         print(f"Ошибка конвертации видео: {e}")
         return None
 
-
 @app.route("/")
 def home():
     return render_template("index.html", categories=CATEGORY_DATA)
-
 
 @app.route("/add-product", methods=["POST"])
 def add_product():
@@ -130,7 +132,7 @@ def add_product():
             output_filename = f"{product_name.replace(' ', '_')}-{product_slug}.mp4"
 
             if video.filename.lower().endswith(".mov"):
-                converted_video_path = fast_convert_video(video, output_filename)
+                converted_video_path = fast_convert_and_crop_video(video, output_filename)
                 if converted_video_path:
                     with open(converted_video_path, "rb") as converted_video:
                         video_id = upload_media(converted_video, filename=output_filename)
@@ -171,7 +173,6 @@ def add_product():
 
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
-
 
 if __name__ == "__main__":
     app.run(debug=True, host="0.0.0.0", port=8080)
