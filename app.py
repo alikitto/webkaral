@@ -4,7 +4,7 @@ import os
 import base64
 import random
 import tempfile
-import ffmpeg  # ffmpeg-python для конвертации видео
+import ffmpeg
 
 app = Flask(__name__)
 
@@ -37,37 +37,13 @@ GOLD_PURITY_MAP = {
     "106": "750 (18K)"
 }
 
-# Конвертация MOV → MP4
-def convert_mov_to_mp4_ffmpeg(input_path, output_path):
-    """ Конвертирует MOV в MP4 с выбором формата и качеством """
-    try:
-        print(f"Конвертация видео: {input_path} → {output_path}")
+# Настройки видео
+RESOLUTION = 720  # Размер видео (720x720, 1:1)
+BITRATE = "2500k"  # Оптимальный битрейт
 
-        # Определение пропорций исходного видео
-        probe = ffmpeg.probe(input_path)
-        video_stream = next((stream for stream in probe["streams"] if stream["codec_type"] == "video"), None)
-        width, height = int(video_stream["width"]), int(video_stream["height"])
 
-        # Выбор нужного соотношения сторон (9:16, 4:5, 1:1)
-        if width > height:
-            new_width, new_height = 1080, 1350  # 4:5 (Instagram)
-        else:
-            new_width, new_height = 720, 1280  # 9:16 (TikTok/Reels)
-
-        # Конвертация видео
-        ffmpeg.input(input_path).output(
-            output_path, vcodec="libx264", acodec="aac", vf=f"scale={new_width}:{new_height}"
-        ).run(overwrite_output=True)
-
-        print(f"Конвертация завершена! Файл сохранён: {output_path}")
-        return output_path
-    except Exception as e:
-        print(f"Ошибка конвертации видео: {e}")
-        return None
-
-# Загрузка файлов в WordPress
 def upload_media(file, filename=None):
-    """ Загружает файл в WordPress и возвращает ID """
+    """ Загружает файл (изображение или видео) в медиатеку WordPress и возвращает ID """
     if not file:
         print("Ошибка: Файл отсутствует!")
         return None
@@ -86,12 +62,55 @@ def upload_media(file, filename=None):
         print(f"Ошибка загрузки файла: {response.text}")
         return None
 
-# Главная страница
+
+def convert_and_crop_video(video, output_filename):
+    """ Конвертация MOV → MP4 с обрезкой в формат 1:1 (720x720) """
+    try:
+        temp_input = tempfile.NamedTemporaryFile(delete=False, suffix=".mov")
+        temp_output = os.path.join(tempfile.gettempdir(), output_filename)
+
+        print(f"Сохраняем видео {video.filename} во временный файл {temp_input.name}")
+        video.save(temp_input.name)
+
+        print(f"Начинаем конвертацию и обрезку видео...")
+
+        # Читаем параметры видео
+        probe = ffmpeg.probe(temp_input.name)
+        video_stream = next((stream for stream in probe["streams"] if stream["codec_type"] == "video"), None)
+
+        if not video_stream:
+            raise ValueError("Не найден видеопоток")
+
+        width = int(video_stream["width"])
+        height = int(video_stream["height"])
+
+        # Обрезка под 1:1 (центрируем)
+        crop_size = min(width, height)
+        x_offset = (width - crop_size) // 2
+        y_offset = (height - crop_size) // 2
+
+        # Запускаем FFmpeg для обрезки и сжатия
+        ffmpeg.input(temp_input.name).filter(
+            "crop", crop_size, crop_size, x_offset, y_offset
+        ).filter(
+            "scale", RESOLUTION, RESOLUTION
+        ).output(
+            temp_output, vcodec="libx264", acodec="aac", bitrate=BITRATE
+        ).run(overwrite_output=True)
+
+        print(f"Конвертация завершена! Файл сохранён: {temp_output}")
+
+        return temp_output
+    except Exception as e:
+        print(f"Ошибка конвертации видео: {e}")
+        return None
+
+
 @app.route("/")
 def home():
     return render_template("index.html", categories=CATEGORY_DATA)
 
-# Добавление товара
+
 @app.route("/add-product", methods=["POST"])
 def add_product():
     try:
@@ -104,7 +123,7 @@ def add_product():
         image = request.files.get("image")
         video = request.files.get("video")
 
-        # Проверяем обязательные поля
+        # Проверяем валидность данных
         if not category_id or not weight or not price:
             return jsonify({"status": "error", "message": "❌ Обязательные поля не заполнены"}), 400
 
@@ -123,19 +142,13 @@ def add_product():
         if not image_id:
             return jsonify({"status": "error", "message": "❌ Ошибка загрузки изображения"}), 400
 
-        # Проверяем видео и конвертируем его
+        # Проверка типа видео и конвертация, если это MOV
         video_id = None
         if video:
             output_filename = f"{product_name.replace(' ', '_')}-{product_slug}.mp4"
 
             if video.filename.lower().endswith(".mov"):
-                temp_input = tempfile.NamedTemporaryFile(delete=False, suffix=".mov")
-                temp_output = os.path.join(tempfile.gettempdir(), output_filename)
-
-                print(f"Сохранение видео {video.filename} в {temp_input.name}")
-                video.save(temp_input.name)
-
-                converted_video_path = convert_mov_to_mp4_ffmpeg(temp_input.name, temp_output)
+                converted_video_path = convert_and_crop_video(video, output_filename)
                 if converted_video_path:
                     with open(converted_video_path, "rb") as converted_video:
                         video_id = upload_media(converted_video, filename=output_filename)
@@ -164,16 +177,19 @@ def add_product():
         if video_id:
             product_data["meta_data"].append({"key": "_product_video_gallery", "value": video_id})
 
-        # Отправляем товар в WooCommerce
-        response = requests.post(f"{WC_API_URL}/products", json=product_data, params={
-            "consumer_key": WC_CONSUMER_KEY,
-            "consumer_secret": WC_CONSUMER_SECRET
-        })
+        url = f"{WC_API_URL}/products"
+        params = {"consumer_key": WC_CONSUMER_KEY, "consumer_secret": WC_CONSUMER_SECRET}
+        response = requests.post(url, json=product_data, params=params)
 
-        return jsonify({"status": "success", "message": "✅ Товар успешно добавлен!"}) if response.status_code == 201 else jsonify({"status": "error", "message": response.text}), 400
+        if response.status_code == 201:
+            product_url = response.json().get("permalink", "#")
+            return jsonify({"status": "success", "message": "✅ Товар успешно добавлен!", "url": product_url})
+        else:
+            return jsonify({"status": "error", "message": "❌ Ошибка при добавлении товара.", "details": response.text}), 400
 
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
+
 
 if __name__ == "__main__":
     app.run(debug=True, host="0.0.0.0", port=8080)
