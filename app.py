@@ -22,9 +22,24 @@ WP_MEDIA_URL = "https://karal.az/wp-json/wp/v2/media"
 auth = base64.b64encode(f"{WP_USERNAME}:{WP_PASSWORD}".encode()).decode()
 HEADERS = {"Authorization": f"Basic {auth}"}
 
+# Категории товаров (ВОЗМОЖНО, УДАЛИЛОСЬ В ТВОЕМ КОДЕ)
+CATEGORY_DATA = {
+    "126": {"name": "Qızıl üzük", "slug": "qizil-uzuk"},
+    "132": {"name": "Qızıl sırğa", "slug": "qizil-sirqa"},
+    "140": {"name": "Qızıl sep", "slug": "qizil-sep"},
+    "138": {"name": "Qızıl qolbaq", "slug": "qizil-qolbaq"},
+    "144": {"name": ["Qızıl dəst", "Qızıl komplekt"], "slug": "qizil-komplekt-dest"}
+}
+
+# Пробы золота
+GOLD_PURITY_MAP = {
+    "105": "585 (14K)",
+    "106": "750 (18K)"
+}
+
 # Настройки видео
 RESOLUTION = 720  # Размер видео (720x720, 1:1)
-BITRATE = "2000k"  # Оптимальный битрейт (сбалансированное качество)
+BITRATE = "2000k"  # Оптимальный битрейт
 THREADS = 2  # Количество потоков для FFmpeg
 
 # Функция загрузки файла в WordPress
@@ -49,7 +64,7 @@ def upload_media(file, filename=None):
         print(f"Ошибка загрузки файла: {response.text}")
         return None
 
-# Функция быстрой конвертации и обрезки видео 1:1
+# Функция конвертации + обрезки видео 1:1
 def fast_convert_and_crop_video(video, output_filename):
     """Быстрая конвертация MOV → MP4 с обрезкой в 1:1 (720x720)"""
     try:
@@ -93,12 +108,12 @@ def fast_convert_and_crop_video(video, output_filename):
 
 @app.route("/")
 def home():
+    """Загрузка главной страницы index.html"""
     return render_template("index.html", categories=CATEGORY_DATA)
 
 @app.route("/add-product", methods=["POST"])
 def add_product():
     try:
-        # Получаем данные из формы
         category_id = request.form.get("category")
         weight = request.form.get("weight")
         gold_purity_id = request.form.get("gold_purity")
@@ -107,26 +122,21 @@ def add_product():
         image = request.files.get("image")
         video = request.files.get("video")
 
-        # Проверяем валидность данных
         if not category_id or not weight or not price:
             return jsonify({"status": "error", "message": "❌ Обязательные поля не заполнены"}), 400
 
-        # Преобразуем ID пробы в текстовое значение
         gold_purity = GOLD_PURITY_MAP.get(gold_purity_id, "585 (14K)")
 
-        # Генерируем название и slug
         category_info = CATEGORY_DATA.get(category_id, {})
         product_name = random.choice(category_info["name"]) if isinstance(category_info["name"], list) else category_info["name"]
         product_slug = f"{category_info['slug']}-{random.randint(1000, 9999)}"
 
         print(f"Создаём товар: {product_name}, Slug: {product_slug}, Вес: {weight}, Цена: {price}")
 
-        # Загружаем изображение
         image_id = upload_media(image) if image else None
         if not image_id:
             return jsonify({"status": "error", "message": "❌ Ошибка загрузки изображения"}), 400
 
-        # Проверка типа видео и конвертация, если это MOV
         video_id = None
         if video:
             output_filename = f"{product_name.replace(' ', '_')}-{product_slug}.mp4"
@@ -139,7 +149,6 @@ def add_product():
             else:
                 video_id = upload_media(video, filename=output_filename)
 
-        # Данные для WooCommerce
         product_data = {
             "name": product_name,
             "slug": product_slug,
