@@ -3,7 +3,7 @@ import requests
 import os
 import base64
 import random
-from moviepy import VideoFileClip 
+import moviepy.editor as mp
 
 app = Flask(__name__)
 
@@ -19,7 +19,9 @@ WP_MEDIA_URL = "https://karal.az/wp-json/wp/v2/media"
 
 # Авторизация для WordPress API
 auth = base64.b64encode(f"{WP_USERNAME}:{WP_PASSWORD}".encode()).decode()
-HEADERS = {"Authorization": f"Basic {auth}"}
+HEADERS = {
+    "Authorization": f"Basic {auth}"
+}
 
 # Категории товаров
 CATEGORY_DATA = {
@@ -43,10 +45,36 @@ RING_DESCRIPTIONS = [
     "✨ Qızılın əbədi gözəlliyi! Zəriflik, incəlik və yüksək keyfiyyət – bu qızıl üzük hər anınızı daha xüsusi edəcək."
 ]
 
-# Функция загрузки файла (изображение или видео) в WordPress
+
+def convert_mov_to_mp4(video):
+    """ Конвертация MOV в MP4 """
+    try:
+        temp_input = f"/tmp/{random.randint(1000, 9999)}.mov"
+        temp_output = temp_input.replace(".mov", ".mp4")
+
+        # Сохраняем временный MOV-файл
+        video.save(temp_input)
+
+        # Конвертация
+        clip = mp.VideoFileClip(temp_input)
+        clip.write_videofile(temp_output, codec="libx264", audio_codec="aac")
+
+        return temp_output
+    except Exception as e:
+        print(f"Ошибка конвертации видео: {e}")
+        return None
+
+
 def upload_media(file):
     """ Загружает файл (изображение или видео) в медиатеку WordPress и возвращает ID """
-    files = {"file": (file.filename, file.stream, file.content_type)}
+    if not file:
+        return None
+
+    if hasattr(file, "filename"):
+        files = {"file": (file.filename, file.stream, file.content_type)}
+    else:
+        return None
+
     response = requests.post(WP_MEDIA_URL, headers=HEADERS, files=files)
 
     if response.status_code == 201:
@@ -55,36 +83,12 @@ def upload_media(file):
     else:
         return None
 
-# Функция конвертации видео MOV → MP4
-def convert_video_to_mp4(video):
-    """ Конвертирует MOV в MP4 """
-    if video.filename.lower().endswith(".mov"):
-        mp4_filename = video.filename.rsplit(".", 1)[0] + ".mp4"
-        video_path = f"/tmp/{video.filename}"
-        output_path = f"/tmp/{mp4_filename}"
 
-        # Сохраняем MOV файл во временную папку
-        video.save(video_path)
-
-        # Конвертация в MP4
-        try:
-            clip = VideoFileClip(video_path)
-            clip.write_videofile(output_path, codec="libx264", audio_codec="aac")
-            clip.close()
-
-            return output_path
-        except Exception as e:
-            print(f"Ошибка конвертации видео: {e}")
-            return None
-    else:
-        return None
-
-# Главная страница
 @app.route("/")
 def home():
     return render_template("index.html", categories=CATEGORY_DATA)
 
-# Добавление товара
+
 @app.route("/add-product", methods=["POST"])
 def add_product():
     try:
@@ -116,12 +120,18 @@ def add_product():
         if not image_id:
             return jsonify({"status": "error", "message": "❌ Ошибка загрузки изображения"}), 400
 
-        # Конвертация видео в MP4 (если это MOV)
+        # Проверка типа файла видео и конвертация, если это MOV
         if video:
-            converted_video_path = convert_video_to_mp4(video)
-            if converted_video_path:
-                with open(converted_video_path, "rb") as f:
-                    video_id = upload_media(f)
+            print(f"Загружен файл: {video.filename}")
+            print(f"Тип: {video.content_type}")
+
+            if video.filename.lower().endswith(".mov"):
+                converted_video_path = convert_mov_to_mp4(video)
+                if converted_video_path:
+                    with open(converted_video_path, "rb") as converted_video:
+                        video_id = upload_media(converted_video)
+                else:
+                    return jsonify({"status": "error", "message": "❌ Ошибка конвертации видео"}), 400
             else:
                 video_id = upload_media(video)
         else:
@@ -160,7 +170,6 @@ def add_product():
         params = {"consumer_key": WC_CONSUMER_KEY, "consumer_secret": WC_CONSUMER_SECRET}
         response = requests.post(url, json=product_data, params=params)
 
-        # Проверка ответа
         if response.status_code == 201:
             product_url = response.json().get("permalink", "#")
             return jsonify({"status": "success", "message": "✅ Товар успешно добавлен!", "url": product_url})
@@ -169,6 +178,7 @@ def add_product():
 
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
+
 
 if __name__ == "__main__":
     app.run(debug=True, host="0.0.0.0", port=8080)
