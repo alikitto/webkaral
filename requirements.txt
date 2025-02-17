@@ -1,8 +1,8 @@
 flask
+woocommerce
 gunicorn
 requests
 python-dotenv
 moviepy
-numpy
 imageio[ffmpeg]
-woocommerce
+numpy
