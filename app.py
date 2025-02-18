@@ -154,7 +154,7 @@ def add_product():
             if processed_image:
                 print("📌 [INFO] Загружаем обработанное изображение...")
                 with open(processed_image, "rb") as img_file:
-                    image_id = upload_media(img_file)
+                    image_id = upload_media(img_file, filename=os.path.basename(processed_image))
 
         # Загрузка видео
         video_id = None
@@ -206,4 +206,5 @@ def add_product():
     except Exception as e:
         print(f"❌ [ERROR] Исключение в add_product: {e}")
         return jsonify({"status": "error", "message": str(e)}), 500
+
 
