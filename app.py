@@ -71,8 +71,10 @@ def upload_media(file, filename=None):
         return None
 
 # Обрезка и центрирование фото 4:5
+from PIL import Image, ImageOps
+
 def process_image(image, filename_slug):
-    """ Обрезка фото в формат 1:1 и автоматический поворот """
+    """ Обрезка фото в формат 1:1, авто-поворот и сохранение """
     try:
         temp_input = tempfile.NamedTemporaryFile(delete=False, suffix=".jpg")
         temp_output = os.path.join(tempfile.gettempdir(), f"{filename_slug}.jpg")
@@ -82,10 +84,7 @@ def process_image(image, filename_slug):
         img = Image.open(temp_input.name)
 
         # Автоматический поворот изображения на основе EXIF
-        try:
-            img = ImageOps.exif_transpose(img)
-        except Exception as e:
-            print(f"⚠️ [WARNING] Не удалось обработать EXIF: {e}")
+        img = ImageOps.exif_transpose(img)
 
         width, height = img.size
 
@@ -98,7 +97,7 @@ def process_image(image, filename_slug):
         img = img.crop((left, top, right, bottom))
 
         # Масштабируем в 720x720
-        img = img.resize((720, 720), Image.Resampling.LANCZOS)
+        img = img.resize((720, 720), Image.LANCZOS)
         img.save(temp_output, format="JPEG")
 
         return temp_output
@@ -183,7 +182,7 @@ def add_product():
         print(f"✅ [INFO] Загруженное изображение ID: {image_id}")
         print(f"✅ [INFO] Загруженное видео ID: {video_id}")
 
-        # Формируем данные для WooCommerce
+        # ✅ Теперь точно добавляем пробу золота
         product_data = {
             "name": product_name,
             "slug": product_slug,
@@ -191,6 +190,9 @@ def add_product():
             "sale_price": sale_price if sale_price != "0" else None,
             "categories": [{"id": int(category_id)}],
             "images": [{"id": image_id}] if image_id else [],
+            "attributes": [
+                {"id": 2, "name": "Əyar", "options": [gold_purity], "visible": True, "variation": False}
+            ],
             "meta_data": [
                 {"key": "_weight", "value": weight},
                 {"key": "_product_video_autoplay", "value": "on"},
@@ -220,6 +222,7 @@ def add_product():
     except Exception as e:
         print(f"❌ [ERROR] Исключение в add_product: {e}")
         return jsonify({"status": "error", "message": str(e)}), 500
+
 
 
 
