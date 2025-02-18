@@ -5,6 +5,7 @@ import base64
 import random
 import tempfile
 import ffmpeg
+import PIL
 from PIL import Image
 
 app = Flask(__name__)
