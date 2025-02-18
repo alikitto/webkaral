@@ -127,6 +127,8 @@ def home():
 @app.route("/add-product", methods=["POST"])
 def add_product():
     try:
+        print("📌 [INFO] Получен запрос на добавление товара")
+
         category_id = request.form.get("category")
         weight = request.form.get("weight")
         gold_purity_id = request.form.get("gold_purity")
@@ -136,29 +138,45 @@ def add_product():
         video = request.files.get("video")
 
         if not category_id or not weight or not price:
+            print("❌ [ERROR] Не заполнены обязательные поля")
             return jsonify({"status": "error", "message": "❌ Обязательные поля не заполнены"}), 400
 
         gold_purity = GOLD_PURITY_MAP.get(gold_purity_id, "585 (14K)")
         category_info = CATEGORY_DATA.get(category_id, {})
         product_name = random.choice(category_info["name"]) if isinstance(category_info["name"], list) else category_info["name"]
 
-        print(f"Создаём товар: {product_name}, Вес: {weight}, Цена: {price}")
+        print(f"📌 [INFO] Создаём товар: {product_name}, Вес: {weight}, Цена: {price}")
 
-        image_id = upload_media(open(process_image(image), "rb")) if image else None
+        # Загрузка изображения
+        image_id = None
+        if image:
+            processed_image = process_image(image)
+            if processed_image:
+                print("📌 [INFO] Загружаем обработанное изображение...")
+                with open(processed_image, "rb") as img_file:
+                    image_id = upload_media(img_file)
+
+        # Загрузка видео
         video_id = None
         if video:
             output_filename = f"{product_name.replace(' ', '_')}.mp4"
             converted_video_path = convert_and_crop_video(video, output_filename)
             if converted_video_path:
                 with open(converted_video_path, "rb") as converted_video:
+                    print("📌 [INFO] Загружаем видео...")
                     video_id = upload_media(converted_video, filename=output_filename)
 
+        # Проверяем, загружены ли файлы
+        print(f"✅ [INFO] Загруженное изображение ID: {image_id}")
+        print(f"✅ [INFO] Загруженное видео ID: {video_id}")
+
+        # Формируем данные для WooCommerce
         product_data = {
             "name": product_name,
             "regular_price": price,
             "sale_price": sale_price if sale_price != "0" else None,
             "categories": [{"id": int(category_id)}],
-            "images": [{"id": image_id}],
+            "images": [{"id": image_id}] if image_id else [],
             "meta_data": [
                 {"key": "_weight", "value": weight},
                 {"key": "_product_video_autoplay", "value": "on"},
@@ -169,9 +187,23 @@ def add_product():
         if video_id:
             product_data["meta_data"].append({"key": "_product_video_gallery", "value": video_id})
 
-        response = requests.post(WC_API_URL + "/products", json=product_data,
-                                 params={"consumer_key": WC_CONSUMER_KEY, "consumer_secret": WC_CONSUMER_SECRET})
+        print("📌 [INFO] Отправляем запрос на создание товара...")
+        response = requests.post(
+            WC_API_URL + "/products",
+            json=product_data,
+            params={"consumer_key": WC_CONSUMER_KEY, "consumer_secret": WC_CONSUMER_SECRET}
+        )
 
-        return jsonify({"status": "success", "message": "✅ Товар добавлен!"})
+        print(f"📌 [INFO] Ответ от сервера WooCommerce: {response.status_code}")
+        print(f"📌 [INFO] Детали ответа: {response.text}")
+
+        if response.status_code == 201:
+            return jsonify({"status": "success", "message": "✅ Товар добавлен!"})
+        else:
+            print("❌ [ERROR] Ошибка при добавлении товара")
+            return jsonify({"status": "error", "message": "❌ Ошибка при добавлении товара"}), 400
+
     except Exception as e:
+        print(f"❌ [ERROR] Исключение в add_product: {e}")
         return jsonify({"status": "error", "message": str(e)}), 500
+
