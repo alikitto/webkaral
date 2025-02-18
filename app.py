@@ -71,31 +71,34 @@ def upload_media(file, filename=None):
         return None
 
 # Обрезка и центрирование фото 4:5
-def process_image(image):
+def process_image(image, filename_slug):
+    """ Обрезка фото в формат 1:1 и автоматический поворот """
     try:
         temp_input = tempfile.NamedTemporaryFile(delete=False, suffix=".jpg")
-        temp_output = tempfile.NamedTemporaryFile(delete=False, suffix=".jpg").name
+        temp_output = os.path.join(tempfile.gettempdir(), f"{filename_slug}.jpg")
 
         image.save(temp_input.name)
 
         img = Image.open(temp_input.name)
+
+        # Автоматический поворот изображения на основе EXIF
+        try:
+            img = ImageOps.exif_transpose(img)
+        except Exception as e:
+            print(f"⚠️ [WARNING] Не удалось обработать EXIF: {e}")
+
         width, height = img.size
 
-        target_width, target_height = RESOLUTION_IMAGE
+        # Обрезка фото в 1:1 (центрируем по вертикали и горизонтали)
+        crop_size = min(width, height)
+        left = (width - crop_size) // 2
+        top = (height - crop_size) // 2
+        right = left + crop_size
+        bottom = top + crop_size
+        img = img.crop((left, top, right, bottom))
 
-        # Обрезка по центру
-        if width / height > target_width / target_height:
-            new_width = int(height * target_width / target_height)
-            left = (width - new_width) / 2
-            right = left + new_width
-            img = img.crop((left, 0, right, height))
-        else:
-            new_height = int(width * target_height / target_width)
-            top = (height - new_height) / 2
-            bottom = top + new_height
-            img = img.crop((0, top, width, bottom))
-
-        img = img.resize(RESOLUTION_IMAGE)  # ✅ Убрали Image.ANTIALIAS
+        # Масштабируем в 720x720
+        img = img.resize((720, 720), Image.Resampling.LANCZOS)
         img.save(temp_output, format="JPEG")
 
         return temp_output
@@ -105,6 +108,7 @@ def process_image(image):
 
 # Обрезка и центрирование видео 4:5
 def convert_and_crop_video(video, output_filename):
+    """ Обрезка видео в формат 1:1 и конвертация в MP4 """
     try:
         temp_input = tempfile.NamedTemporaryFile(delete=False, suffix=".mov")
         temp_output = os.path.join(tempfile.gettempdir(), output_filename)
@@ -112,12 +116,13 @@ def convert_and_crop_video(video, output_filename):
         print(f"🔄 Сохраняем видео {video.filename} во временный файл {temp_input.name}")
         video.save(temp_input.name)
 
-        print("🔄 Начинаем конвертацию видео в 4:5...")
+        print("🔄 Начинаем конвертацию видео в 1:1...")
 
+        # Обрезаем в 1:1
         ffmpeg.input(temp_input.name).filter(
-            "crop", f"min(iw,ih)", f"min(iw,ih)", f"(iw-min(iw,ih))/2", f"(ih-min(iw,ih))/2"
+            "crop", "min(iw,ih)", "min(iw,ih)", "(iw-min(iw,ih))/2", "(ih-min(iw,ih))/2"
         ).filter(
-            "scale", RESOLUTION_VIDEO[0], RESOLUTION_VIDEO[1]
+            "scale", 720, 720
         ).output(
             temp_output, vcodec="libx264", acodec="aac", bitrate=BITRATE
         ).run(overwrite_output=True)
@@ -152,35 +157,36 @@ def add_product():
         gold_purity = GOLD_PURITY_MAP.get(gold_purity_id, "585 (14K)")
         category_info = CATEGORY_DATA.get(category_id, {})
         product_name = random.choice(category_info["name"]) if isinstance(category_info["name"], list) else category_info["name"]
+        product_slug = f"{category_info['slug']}-{random.randint(1000, 9999)}"
 
-        print(f"📌 [INFO] Создаём товар: {product_name}, Вес: {weight}, Цена: {price}")
+        print(f"📌 [INFO] Создаём товар: {product_name}, Slug: {product_slug}, Вес: {weight}, Цена: {price}")
 
         # Загрузка изображения
         image_id = None
         if image:
-            processed_image = process_image(image)
+            processed_image = process_image(image, product_slug)
             if processed_image:
                 print("📌 [INFO] Загружаем обработанное изображение...")
                 with open(processed_image, "rb") as img_file:
-                    image_id = upload_media(img_file, filename=os.path.basename(processed_image))
+                    image_id = upload_media(img_file, filename=f"{product_slug}.jpg")
 
         # Загрузка видео
         video_id = None
         if video:
-            output_filename = f"{product_name.replace(' ', '_')}.mp4"
+            output_filename = f"{product_slug}.mp4"
             converted_video_path = convert_and_crop_video(video, output_filename)
             if converted_video_path:
                 with open(converted_video_path, "rb") as converted_video:
                     print("📌 [INFO] Загружаем видео...")
                     video_id = upload_media(converted_video, filename=output_filename)
 
-        # Проверяем, загружены ли файлы
         print(f"✅ [INFO] Загруженное изображение ID: {image_id}")
         print(f"✅ [INFO] Загруженное видео ID: {video_id}")
 
         # Формируем данные для WooCommerce
         product_data = {
             "name": product_name,
+            "slug": product_slug,
             "regular_price": price,
             "sale_price": sale_price if sale_price != "0" else None,
             "categories": [{"id": int(category_id)}],
@@ -214,6 +220,7 @@ def add_product():
     except Exception as e:
         print(f"❌ [ERROR] Исключение в add_product: {e}")
         return jsonify({"status": "error", "message": str(e)}), 500
+
 
 
 
