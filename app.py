@@ -87,9 +87,9 @@ def process_image(image):
             bottom = top + new_height
             img = img.crop((0, top, width, bottom))
 
-        img = img.resize(RESOLUTION_IMAGE, Image.ANTIALIAS)
+        img = img.resize(RESOLUTION_IMAGE)  # ✅ Убрали Image.ANTIALIAS
         img.save(temp_output, format="JPEG")
-        
+
         return temp_output
     except Exception as e:
         print(f"❌ Ошибка обработки фото: {e}")
