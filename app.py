@@ -43,15 +43,23 @@ GOLD_PURITY_MAP = {
 }
 
 # Функция загрузки файлов в WordPress
+import mimetypes
+
 def upload_media(file, filename=None):
+    """ Загружает файл в WordPress и возвращает ID """
     if not file:
         print("❌ Ошибка: Файл отсутствует!")
         return None
 
-    filename = filename or file.filename
+    filename = filename or "uploaded_file.jpg"
     print(f"🔄 Загружаем файл: {filename}")
 
-    files = {"file": (filename, file, "video/mp4" if filename.endswith(".mp4") else file.content_type)}
+    # Определяем MIME-тип файла
+    mime_type, _ = mimetypes.guess_type(filename)
+    if not mime_type:
+        mime_type = "application/octet-stream"  # Фолбэк на случай неизвестного типа
+
+    files = {"file": (filename, file, mime_type)}
     response = requests.post(WP_MEDIA_URL, headers=HEADERS, files=files)
 
     if response.status_code == 201:
@@ -206,5 +214,6 @@ def add_product():
     except Exception as e:
         print(f"❌ [ERROR] Исключение в add_product: {e}")
         return jsonify({"status": "error", "message": str(e)}), 500
+
 
 
