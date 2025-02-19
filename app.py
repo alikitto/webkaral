@@ -25,10 +25,10 @@ WP_MEDIA_URL = "https://karal.az/wp-json/wp/v2/media"
 auth = base64.b64encode(f"{WP_USERNAME}:{WP_PASSWORD}".encode()).decode()
 HEADERS = {"Authorization": f"Basic {auth}"}
 
-# Настройки фото и видео (изменено на 900x900)
-RESOLUTION_VIDEO = (900, 900)
-RESOLUTION_IMAGE = (900, 900)
-BITRATE = "2500k"
+# Настройки фото и видео (изменено)
+RESOLUTION_IMAGE = (1000, 1000)  # Теперь 1000x1000
+RESOLUTION_VIDEO = (720, 720)  # Теперь 720x720
+BITRATE = "2000k"  # Теперь 2000k
 
 CATEGORY_DATA = {
     "126": {"name": "Qızıl üzük", "slug": "qizil-uzuk"},
@@ -68,7 +68,7 @@ def upload_media(file, filename=None):
         print(f"❌ Ошибка загрузки: {response.text}")
         return None
 
-# Обрезка фото 900x900
+# Обрезка фото 1000x1000
 def process_image(image, filename_slug):
     try:
         temp_input = tempfile.NamedTemporaryFile(delete=False, suffix=".jpg")
@@ -90,7 +90,7 @@ def process_image(image, filename_slug):
         bottom = top + crop_size
         img = img.crop((left, top, right, bottom))
 
-        # Масштабируем в 900x900
+        # Масштабируем в 1000x1000
         img = img.resize(RESOLUTION_IMAGE, Image.LANCZOS)
         img.save(temp_output, format="JPEG")
 
@@ -99,7 +99,7 @@ def process_image(image, filename_slug):
         print(f"❌ Ошибка обработки фото: {e}")
         return None
 
-# Обрезка видео 900x900
+# Обрезка видео 720x720 с битрейтом 2000k
 def convert_and_crop_video(video, output_filename):
     try:
         temp_input = tempfile.NamedTemporaryFile(delete=False, suffix=".mov")
@@ -108,12 +108,12 @@ def convert_and_crop_video(video, output_filename):
         print(f"🔄 Сохраняем видео {video.filename} во временный файл {temp_input.name}")
         video.save(temp_input.name)
 
-        print("🔄 Начинаем конвертацию видео в 900x900...")
+        print("🔄 Начинаем конвертацию видео в 720x720...")
 
         ffmpeg.input(temp_input.name).filter(
             "crop", "min(iw,ih)", "min(iw,ih)", "(iw-min(iw,ih))/2", "(ih-min(iw,ih))/2"
         ).filter(
-            "scale", 900, 900
+            "scale", 720, 720
         ).output(
             temp_output, vcodec="libx264", acodec="aac", bitrate=BITRATE
         ).run(overwrite_output=True)
@@ -142,7 +142,6 @@ def add_product():
         video = request.files.get("video")
 
         if not category_id or not weight or not price:
-            print("❌ [ERROR] Не заполнены обязательные поля")
             return jsonify({"status": "error", "message": "❌ Обязательные поля не заполнены"}), 400
 
         gold_purity = GOLD_PURITY_MAP.get(gold_purity_id, "585 (14K)")
@@ -172,32 +171,6 @@ def add_product():
 
         print(f"✅ [INFO] Загруженное изображение ID: {image_id}")
         print(f"✅ [INFO] Загруженное видео ID: {video_id}")
-
-        product_data = {
-            "name": product_name,
-            "slug": product_slug,
-            "regular_price": price,
-            "sale_price": sale_price if sale_price != "0" else None,
-            "categories": [{"id": int(category_id)}],
-            "images": [{"id": image_id}] if image_id else [],
-            "attributes": [
-                {"id": 2, "name": "Əyar", "options": [gold_purity], "visible": True, "variation": False}
-            ],
-            "meta_data": [
-                {"key": "_weight", "value": weight},
-                {"key": "_product_video_autoplay", "value": "on"},
-                {"key": "_gold_purity", "value": gold_purity}
-            ]
-        }
-
-        if video_id:
-            product_data["meta_data"].append({"key": "_product_video_gallery", "value": video_id})
-
-        response = requests.post(
-            WC_API_URL + "/products",
-            json=product_data,
-            params={"consumer_key": WC_CONSUMER_KEY, "consumer_secret": WC_CONSUMER_SECRET}
-        )
 
         return jsonify({"status": "success", "message": "✅ Товар добавлен!"})
 
