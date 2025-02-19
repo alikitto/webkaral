@@ -1,5 +1,4 @@
 import os
-import asyncio
 import base64
 import tempfile
 import requests
@@ -7,6 +6,7 @@ import boto3
 import ffmpeg
 from flask import Flask, render_template, request, jsonify
 from PIL import Image, ImageOps
+import io
 
 app = Flask(__name__)
 
@@ -52,15 +52,24 @@ CATEGORY_DATA = {
 def home():
     return render_template("index.html", categories=CATEGORY_DATA)
 
-def upload_to_r2(file_path, key):
+def upload_to_r2(file_data, key):
     """Uploads a file to Cloudflare R2"""
     try:
-        with open(file_path, "rb") as file:
-            s3_client.upload_fileobj(file, R2_BUCKET, key, ExtraArgs={"ACL": "public-read"})
+        s3_client.upload_fileobj(file_data, R2_BUCKET, key, ExtraArgs={"ACL": "public-read"})
         return f"https://video.karal.az/{key}"
     except Exception as e:
         print(f"❌ Error uploading to R2: {e}")
         return None
+
+def process_image(image):
+    """Resize image to 1000x1000 and return as BytesIO"""
+    img = Image.open(image)
+    img = ImageOps.exif_transpose(img)
+    img = img.resize((1000, 1000), Image.LANCZOS)
+    img_bytes = io.BytesIO()
+    img.save(img_bytes, format="JPEG")
+    img_bytes.seek(0)
+    return img_bytes
 
 @app.route("/add-product", methods=["POST"])
 def add_product():
@@ -74,34 +83,27 @@ def add_product():
         video = request.files.get("video")
         product_slug = f"product-{category_id}-{os.urandom(4).hex()}"
         
-        # Upload original media to R2
         original_photo_url, original_video_url, video_url = None, None, None
         
         if image:
             photo_key = f"original_photos/{product_slug}.jpg"
-            original_photo_path = tempfile.NamedTemporaryFile(delete=False, suffix='.jpg').name
-image.save(original_photo_path)
-original_photo_url = upload_to_r2(original_photo_path, photo_key)
-            processed_image = process_image(image, product_slug)
-            image_id = upload_media(processed_image, f"{product_slug}.jpg")
+            original_photo_url = upload_to_r2(image.stream, photo_key)
+            processed_image = process_image(image)
+            image_id = upload_to_r2(processed_image, f"processed_photos/{product_slug}.jpg")
         
         if video:
             video_key = f"original_videos/{product_slug}.mp4"
-            original_video_path = tempfile.NamedTemporaryFile(delete=False, suffix='.mp4').name
-video.save(original_video_path)
-original_video_url = upload_to_r2(original_video_path, video_key)
-            processed_video = process_video(video, product_slug)
+            original_video_url = upload_to_r2(video.stream, video_key)
             video_r2_key = f"product_videos/{product_slug}.mp4"
-            video_url = upload_to_r2(processed_video, video_r2_key)
+            video_url = upload_to_r2(video.stream, video_r2_key)
         
-        # Create product in WooCommerce
         product_data = {
             "name": f"Product {category_id}",
             "slug": product_slug,
             "regular_price": price,
             "sale_price": sale_price if sale_price != "0" else None,
             "categories": [{"id": int(category_id)}],
-            "images": [{"id": image_id}] if image_id else [],
+            "images": [{"src": image_id}] if image_id else [],
             "meta_data": [
                 {"key": "_weight", "value": weight},
                 {"key": "_original_photo_url", "value": original_photo_url},
