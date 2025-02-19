@@ -55,7 +55,7 @@ def save_original_file(file, filename_slug, folder):
 
 
 # Папка на сервере, где будем хранить оригиналы фото
-WP_PHOTOS_DIR = "/var/www/html/wp-content/uploads/original_photos"  # Путь на сервере
+WP_PHOTOS_DIR = "/var/www/karal.az/wp-content/uploads/original_photos"  # Путь на сервере
 WP_PHOTOS_URL = "https://karal.az/wp-content/uploads/original_photos"  # URL для скачивания
 
 # Настройки видео и фото
