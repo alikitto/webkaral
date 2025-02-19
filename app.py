@@ -40,14 +40,6 @@ def save_original_file(file, filename_slug, folder):
         return None
 
 
-        image_url = f"{WP_PHOTOS_URL}/{filename_slug}.jpg"
-        print(f"✅ Оригинальное фото сохранено: {image_url}")
-        return image_url
-    except Exception as e:
-        print(f"❌ Ошибка сохранения оригинального фото: {e}")
-        return None
-
-
 # Папка на сервере, где будем хранить оригиналы фото
 WP_PHOTOS_DIR = "/var/www/html/wp-content/uploads/original_photos"  # Путь на сервере
 WP_PHOTOS_URL = "https://karal.az/wp-content/uploads/original_photos"  # URL для скачивания
@@ -180,6 +172,7 @@ def add_product():
 
         category_id = request.form.get("category")
         weight = request.form.get("weight")
+        gold_purity_id = request.form.get("gold_purity")
         price = request.form.get("price")
         sale_price = request.form.get("sale_price", "0")
         image = request.files.get("image")
@@ -189,14 +182,19 @@ def add_product():
             print("❌ [ERROR] Не заполнены обязательные поля")
             return jsonify({"status": "error", "message": "❌ Обязательные поля не заполнены"}), 400
 
-        product_slug = f"product-{random.randint(1000, 9999)}"
+        gold_purity = GOLD_PURITY_MAP.get(gold_purity_id, "585 (14K)")
+        category_info = CATEGORY_DATA.get(category_id, {})
+        product_name = random.choice(category_info["name"]) if isinstance(category_info["name"], list) else category_info["name"]
+        product_slug = f"{category_info['slug']}-{random.randint(1000, 9999)}"
+
+        print(f"📌 [INFO] Создаём товар: {product_name}, Slug: {product_slug}, Вес: {weight}, Цена: {price}")
 
         # 1️⃣ Сохраняем оригинал фото в `/original_photos/`
         original_photo_url = None
         if image:
             original_photo_url = save_original_file(image, product_slug, "original_photos")
 
-        # 2️⃣ Обрабатываем и загружаем в WordPress (1000x1000)
+        # 2️⃣ Обрабатываем фото и загружаем в WordPress (1000x1000)
         image_id = None
         if image:
             processed_image = process_image(image, product_slug)
@@ -225,15 +223,19 @@ def add_product():
 
         # 5️⃣ Создаём товар в WooCommerce
         product_data = {
-            "name": f"Товар {product_slug}",
+            "name": product_name,
             "slug": product_slug,
             "regular_price": price,
             "sale_price": sale_price if sale_price != "0" else None,
             "categories": [{"id": int(category_id)}],
             "images": [{"id": image_id}] if image_id else [],
+            "attributes": [
+                {"id": 2, "name": "Əyar", "options": [gold_purity], "visible": True, "variation": False}
+            ],
             "meta_data": [
                 {"key": "_weight", "value": weight},
-                {"key": "_product_video_autoplay", "value": "on"}
+                {"key": "_product_video_autoplay", "value": "on"},
+                {"key": "_gold_purity", "value": gold_purity}
             ]
         }
 
@@ -262,6 +264,11 @@ def add_product():
         else:
             print("❌ [ERROR] Ошибка при добавлении товара")
             return jsonify({"status": "error", "message": "❌ Ошибка при добавлении товара"}), 400
+
+    except Exception as e:
+        print(f"❌ [ERROR] Исключение в add_product: {e}")
+        return jsonify({"status": "error", "message": str(e)}), 500
+
 
     except Exception as e:
         print(f"❌ [ERROR] Исключение в add_product: {e}")
