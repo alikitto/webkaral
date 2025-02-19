@@ -29,20 +29,16 @@ WP_PHOTOS_DIR = "/var/www/html/wp-content/uploads/original_photos"  # Путь �
 WP_PHOTOS_URL = "https://karal.az/wp-content/uploads/original_photos"  # URL для скачивания
 
 def save_original_photo(image, filename_slug):
-    """Сохраняет оригинальное фото в папку /original_photos/"""
+    """Сохраняет оригинальное фото в отдельную папку на сервере"""
     try:
+        WP_PHOTOS_DIR = "/var/www/html/wp-content/uploads/original_photos"
+        WP_PHOTOS_URL = "https://karal.az/wp-content/uploads/original_photos"
+
         if not os.path.exists(WP_PHOTOS_DIR):
-            os.makedirs(WP_PHOTOS_DIR, exist_ok=True)  # Создаём папку, если её нет
+            os.makedirs(WP_PHOTOS_DIR, exist_ok=True)
 
         file_path = os.path.join(WP_PHOTOS_DIR, f"{filename_slug}.jpg")
-        print(f"📌 [DEBUG] Путь сохранения оригинала: {file_path}")
-
         image.save(file_path)  # Сохраняем оригинал
-
-        # Проверяем, записался ли файл
-        if not os.path.exists(file_path):
-            print("❌ Ошибка: файл не был создан!")
-            return None
 
         image_url = f"{WP_PHOTOS_URL}/{filename_slug}.jpg"
         print(f"✅ Оригинальное фото сохранено: {image_url}")
@@ -101,21 +97,16 @@ def upload_media(file, filename=None):
 from PIL import Image, ImageOps
 
 def process_image(image, filename_slug):
-    """ Обрезка фото в формат 1:1, авто-поворот и сохранение """
+    """Обрезка фото в 1000x1000 без сохранения на диск"""
     try:
-        temp_input = tempfile.NamedTemporaryFile(delete=False, suffix=".jpg")
         temp_output = os.path.join(tempfile.gettempdir(), f"{filename_slug}.jpg")
 
-        image.save(temp_input.name)
+        img = Image.open(image)
 
-        img = Image.open(temp_input.name)
-
-        # Автоматический поворот изображения на основе EXIF
+        # Автоматический поворот изображения
         img = ImageOps.exif_transpose(img)
 
         width, height = img.size
-
-        # Обрезка фото в 1:1 (центрируем по вертикали и горизонтали)
         crop_size = min(width, height)
         left = (width - crop_size) // 2
         top = (height - crop_size) // 2
@@ -127,10 +118,12 @@ def process_image(image, filename_slug):
         img = img.resize((1000, 1000), Image.LANCZOS)
         img.save(temp_output, format="JPEG")
 
+        print(f"✅ Обработанное изображение сохранено: {temp_output}")
         return temp_output
     except Exception as e:
         print(f"❌ Ошибка обработки фото: {e}")
         return None
+
 
 # Обрезка и центрирование видео 1:1
 def convert_and_crop_video(video, output_filename):
@@ -187,15 +180,15 @@ def add_product():
 
         print(f"📌 [INFO] Создаём товар: {product_name}, Slug: {product_slug}, Вес: {weight}, Цена: {price}")
 
-        # 1️⃣ Загружаем оригинал фото в папку
+        # 1️⃣ Загрузка оригинального фото в папку
         original_photo_url = None
         if image:
             original_photo_url = save_original_photo(image, product_slug)
 
-        # 2️⃣ Обрезаем и загружаем фото (1000x1000) в медиабиблиотеку WordPress
+        # 2️⃣ Обрезаем и загружаем обработанное фото (1000x1000) в медиабиблиотеку
         image_id = None
         if image:
-            processed_image = process_image(image, product_slug)
+            processed_image = process_image(image, product_slug)  # Конвертация из памяти, не из файла
             if processed_image:
                 print("📌 [INFO] Загружаем обработанное изображение...")
                 with open(processed_image, "rb") as img_file:
@@ -232,11 +225,11 @@ def add_product():
             ]
         }
 
-        # 5️⃣ Сохраняем ссылку на оригинал фото в мета-данные
+        # 5️⃣ Добавляем ссылку на оригинал в мета-данные товара
         if original_photo_url:
             product_data["meta_data"].append({"key": "_original_photo_url", "value": original_photo_url})
 
-        # 6️⃣ Сохраняем ID видео, если оно есть
+        # 6️⃣ Добавляем видео в мета-данные товара
         if video_id:
             product_data["meta_data"].append({"key": "_product_video_gallery", "value": video_id})
 
@@ -259,6 +252,7 @@ def add_product():
     except Exception as e:
         print(f"❌ [ERROR] Исключение в add_product: {e}")
         return jsonify({"status": "error", "message": str(e)}), 500
+
 
 
 
