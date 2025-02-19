@@ -29,17 +29,24 @@ WP_PHOTOS_DIR = "/var/www/html/wp-content/uploads/original_photos"  # Путь �
 WP_PHOTOS_URL = "https://karal.az/wp-content/uploads/original_photos"  # URL для скачивания
 
 def save_original_photo(image, filename_slug):
-    """Сохраняет оригинальное фото в отдельную папку на сервере"""
+    """Сохраняет оригинальное фото в папку /original_photos/"""
     try:
         if not os.path.exists(WP_PHOTOS_DIR):
-            os.makedirs(WP_PHOTOS_DIR)  # Создаём папку, если её нет
+            os.makedirs(WP_PHOTOS_DIR, exist_ok=True)  # Создаём папку, если её нет
 
         file_path = os.path.join(WP_PHOTOS_DIR, f"{filename_slug}.jpg")
+        print(f"📌 [DEBUG] Путь сохранения оригинала: {file_path}")
+
         image.save(file_path)  # Сохраняем оригинал
+
+        # Проверяем, записался ли файл
+        if not os.path.exists(file_path):
+            print("❌ Ошибка: файл не был создан!")
+            return None
 
         image_url = f"{WP_PHOTOS_URL}/{filename_slug}.jpg"
         print(f"✅ Оригинальное фото сохранено: {image_url}")
-        return image_url  # Возвращаем ссылку на оригинал
+        return image_url  # Возвращаем ссылку
     except Exception as e:
         print(f"❌ Ошибка сохранения оригинального фото: {e}")
         return None
