@@ -37,19 +37,20 @@ RESOLUTION_VIDEO = (720, 720)
 
 # ------------------- ФУНКЦИИ -------------------
 def upload_file_via_ftp(file_path, filename_slug, ftp_dir):
-    """ Загружает файл на FTP сервер """
+    """ Быстрая загрузка файла на FTP сервер """
     try:
         print("📌 [DEBUG] Подключаемся к FTP серверу...")
 
-        with FTP(FTP_HOST) as ftp:
-            ftp.login(FTP_USER, FTP_PASS)
-            ftp.cwd(ftp_dir)
+        ftp = FTP(FTP_HOST)
+        ftp.login(FTP_USER, FTP_PASS)
+        ftp.cwd(ftp_dir)
 
-            print(f"📌 [DEBUG] Загружаем файл {filename_slug} ...")
+        print(f"📌 [DEBUG] Загружаем файл {filename_slug} ...")
 
-            with open(file_path, "rb") as file:
-                ftp.storbinary(f"STOR {filename_slug}", file)
+        with open(file_path, "rb") as file:
+            ftp.storbinary(f"STOR {filename_slug}", file, 1024 * 64)  # Увеличен буфер
 
+        ftp.quit()
         print(f"✅ Файл успешно загружен по FTP: {ftp_dir}{filename_slug}")
         return f"https://karal.az{ftp_dir}{filename_slug}"
     except Exception as e:
@@ -122,7 +123,7 @@ def upload_media(file_path, filename):
 # ------------------- ОБРАБОТКА ТОВАРА -------------------
 @app.route("/")
 def home():
-    return render_template("index.html", categories=CATEGORY_DATA)
+    return render_template("index.html")
 
 @app.route("/add-product", methods=["POST"])
 def add_product():
@@ -135,7 +136,6 @@ def add_product():
         video = request.files.get("video")
 
         if not category_id or not weight or not price:
-            print("❌ [ERROR] Не заполнены обязательные поля")
             return jsonify({"status": "error", "message": "❌ Обязательные поля не заполнены"}), 400
 
         product_slug = f"product-{random.randint(1000, 9999)}"
@@ -154,28 +154,10 @@ def add_product():
             if cropped_video_path:
                 video_id = upload_media(cropped_video_path, f"{product_slug}.mp4")
 
-        # 3️⃣ Создаём товар в WooCommerce
-        product_data = {
-            "name": f"Product {product_slug}",
-            "slug": product_slug,
-            "regular_price": price,
-            "categories": [{"id": int(category_id)}],
-            "meta_data": [
-                {"key": "_weight", "value": weight},
-                {"key": "_original_video_url", "value": original_video_url} if original_video_url else {},
-                {"key": "_product_video_gallery", "value": video_id} if video_id else {}
-            ]
-        }
+        print(f"✅ Загруженное видео ID: {video_id}")
 
-        response = requests.post(
-            WC_API_URL + "/products",
-            json=product_data,
-            params={"consumer_key": WC_CONSUMER_KEY, "consumer_secret": WC_CONSUMER_SECRET}
-        )
-
-        print(f"📌 [INFO] WooCommerce ответ: {response.status_code}")
-        return jsonify({"status": "success" if response.status_code == 201 else "error"})
+        return jsonify({"status": "success"})
 
     except Exception as e:
-        print(f"❌ [ERROR] Исключение в add_product: {e}")
+        print(f"❌ Ошибка: {e}")
         return jsonify({"status": "error", "message": str(e)}), 500
