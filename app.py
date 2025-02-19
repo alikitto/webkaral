@@ -6,8 +6,7 @@ import random
 import tempfile
 import ffmpeg
 import PIL
-from PIL import Image, ImageOps
-import mimetypes
+from PIL import Image
 
 app = Flask(__name__)
 
@@ -25,10 +24,10 @@ WP_MEDIA_URL = "https://karal.az/wp-json/wp/v2/media"
 auth = base64.b64encode(f"{WP_USERNAME}:{WP_PASSWORD}".encode()).decode()
 HEADERS = {"Authorization": f"Basic {auth}"}
 
-# Настройки фото и видео
-RESOLUTION_IMAGE = (1000, 1000)  # Теперь 1000x1000
-RESOLUTION_VIDEO = (720, 720)  # Теперь 720x720
-BITRATE = "2000k"  # Теперь 2000k
+# Настройки видео и фото
+RESOLUTION_VIDEO = (720, 720)  # 4:5 формат
+RESOLUTION_IMAGE = (1000, 1000)  # 4:5 формат
+BITRATE = "2000k"
 
 CATEGORY_DATA = {
     "126": {"name": "Qızıl üzük", "slug": "qizil-uzuk"},
@@ -44,6 +43,8 @@ GOLD_PURITY_MAP = {
 }
 
 # Функция загрузки файлов в WordPress
+import mimetypes
+
 def upload_media(file, filename=None):
     """ Загружает файл в WordPress и возвращает ID """
     if not file:
@@ -53,9 +54,10 @@ def upload_media(file, filename=None):
     filename = filename or "uploaded_file.jpg"
     print(f"🔄 Загружаем файл: {filename}")
 
+    # Определяем MIME-тип файла
     mime_type, _ = mimetypes.guess_type(filename)
     if not mime_type:
-        mime_type = "application/octet-stream"
+        mime_type = "application/octet-stream"  # Фолбэк на случай неизвестного типа
 
     files = {"file": (filename, file, mime_type)}
     response = requests.post(WP_MEDIA_URL, headers=HEADERS, files=files)
@@ -68,21 +70,25 @@ def upload_media(file, filename=None):
         print(f"❌ Ошибка загрузки: {response.text}")
         return None
 
-# Обрезка фото 1000x1000
+# Обрезка и центрирование фото 1:1
+from PIL import Image, ImageOps
+
 def process_image(image, filename_slug):
+    """ Обрезка фото в формат 1:1, авто-поворот и сохранение """
     try:
         temp_input = tempfile.NamedTemporaryFile(delete=False, suffix=".jpg")
         temp_output = os.path.join(tempfile.gettempdir(), f"{filename_slug}.jpg")
 
         image.save(temp_input.name)
+
         img = Image.open(temp_input.name)
 
-        # Авто-поворот изображения
+        # Автоматический поворот изображения на основе EXIF
         img = ImageOps.exif_transpose(img)
 
         width, height = img.size
 
-        # Обрезаем в 1:1 (центрируем)
+        # Обрезка фото в 1:1 (центрируем по вертикали и горизонтали)
         crop_size = min(width, height)
         left = (width - crop_size) // 2
         top = (height - crop_size) // 2
@@ -91,7 +97,7 @@ def process_image(image, filename_slug):
         img = img.crop((left, top, right, bottom))
 
         # Масштабируем в 1000x1000
-        img = img.resize(RESOLUTION_IMAGE, Image.LANCZOS)
+        img = img.resize((1000, 1000), Image.LANCZOS)
         img.save(temp_output, format="JPEG")
 
         return temp_output
@@ -99,8 +105,9 @@ def process_image(image, filename_slug):
         print(f"❌ Ошибка обработки фото: {e}")
         return None
 
-# Обрезка видео 720x720 с битрейтом 2000k
+# Обрезка и центрирование видео 1:1
 def convert_and_crop_video(video, output_filename):
+    """ Обрезка видео в формат 1:1 и конвертация в MP4 """
     try:
         temp_input = tempfile.NamedTemporaryFile(delete=False, suffix=".mov")
         temp_output = os.path.join(tempfile.gettempdir(), output_filename)
@@ -108,8 +115,9 @@ def convert_and_crop_video(video, output_filename):
         print(f"🔄 Сохраняем видео {video.filename} во временный файл {temp_input.name}")
         video.save(temp_input.name)
 
-        print("🔄 Начинаем конвертацию видео в 720x720...")
+        print("🔄 Начинаем конвертацию видео в 1:1...")
 
+        # Обрезаем в 1:1
         ffmpeg.input(temp_input.name).filter(
             "crop", "min(iw,ih)", "min(iw,ih)", "(iw-min(iw,ih))/2", "(ih-min(iw,ih))/2"
         ).filter(
@@ -142,6 +150,7 @@ def add_product():
         video = request.files.get("video")
 
         if not category_id or not weight or not price:
+            print("❌ [ERROR] Не заполнены обязательные поля")
             return jsonify({"status": "error", "message": "❌ Обязательные поля не заполнены"}), 400
 
         gold_purity = GOLD_PURITY_MAP.get(gold_purity_id, "585 (14K)")
@@ -151,15 +160,16 @@ def add_product():
 
         print(f"📌 [INFO] Создаём товар: {product_name}, Slug: {product_slug}, Вес: {weight}, Цена: {price}")
 
-        # Загружаем фото
+        # Загрузка изображения
         image_id = None
         if image:
             processed_image = process_image(image, product_slug)
             if processed_image:
+                print("📌 [INFO] Загружаем обработанное изображение...")
                 with open(processed_image, "rb") as img_file:
                     image_id = upload_media(img_file, filename=f"{product_slug}.jpg")
 
-        # Загружаем видео
+        # Загрузка видео
         video_id = None
         if video:
             output_filename = f"{product_slug}.mp4"
@@ -172,7 +182,48 @@ def add_product():
         print(f"✅ [INFO] Загруженное изображение ID: {image_id}")
         print(f"✅ [INFO] Загруженное видео ID: {video_id}")
 
-        return jsonify({"status": "success", "message": "✅ Товар добавлен!"})
+        # ✅ Теперь точно добавляем пробу золота
+        product_data = {
+            "name": product_name,
+            "slug": product_slug,
+            "regular_price": price,
+            "sale_price": sale_price if sale_price != "0" else None,
+            "categories": [{"id": int(category_id)}],
+            "images": [{"id": image_id}] if image_id else [],
+            "attributes": [
+                {"id": 2, "name": "Əyar", "options": [gold_purity], "visible": True, "variation": False}
+            ],
+            "meta_data": [
+                {"key": "_weight", "value": weight},
+                {"key": "_product_video_autoplay", "value": "on"},
+                {"key": "_gold_purity", "value": gold_purity}
+            ]
+        }
+
+        if video_id:
+            product_data["meta_data"].append({"key": "_product_video_gallery", "value": video_id})
+
+        print("📌 [INFO] Отправляем запрос на создание товара...")
+        response = requests.post(
+            WC_API_URL + "/products",
+            json=product_data,
+            params={"consumer_key": WC_CONSUMER_KEY, "consumer_secret": WC_CONSUMER_SECRET}
+        )
+
+        print(f"📌 [INFO] Ответ от сервера WooCommerce: {response.status_code}")
+        print(f"📌 [INFO] Детали ответа: {response.text}")
+
+        if response.status_code == 201:
+            return jsonify({"status": "success", "message": "✅ Товар добавлен!"})
+        else:
+            print("❌ [ERROR] Ошибка при добавлении товара")
+            return jsonify({"status": "error", "message": "❌ Ошибка при добавлении товара"}), 400
 
     except Exception as e:
+        print(f"❌ [ERROR] Исключение в add_product: {e}")
         return jsonify({"status": "error", "message": str(e)}), 500
+
+
+
+
+
