@@ -25,23 +25,31 @@ auth = base64.b64encode(f"{WP_USERNAME}:{WP_PASSWORD}".encode()).decode()
 HEADERS = {"Authorization": f"Basic {auth}"}
 
 def save_original_photo(image, filename_slug):
-    """Сохраняет оригинальное фото в отдельную папку на сервере"""
+    """Сохраняет оригинальное фото в папку"""
     try:
-        WP_PHOTOS_DIR = "/www/html/wp-content/uploads/original_photos"
+        WP_PHOTOS_DIR = "/www/karal.az/wp-content/uploads/original_photos"
         WP_PHOTOS_URL = "https://karal.az/wp-content/uploads/original_photos"
 
         if not os.path.exists(WP_PHOTOS_DIR):
             os.makedirs(WP_PHOTOS_DIR, exist_ok=True)
 
         file_path = os.path.join(WP_PHOTOS_DIR, f"{filename_slug}.jpg")
-        image.save(file_path)  # Сохраняем оригинал
+        print(f"📌 [DEBUG] Сохраняем файл по пути: {file_path}")
+
+        image.save(file_path)
+
+        # Проверяем, создался ли файл
+        if not os.path.exists(file_path):
+            print("❌ Ошибка: файл не был создан!")
+            return None
 
         image_url = f"{WP_PHOTOS_URL}/{filename_slug}.jpg"
         print(f"✅ Оригинальное фото сохранено: {image_url}")
-        return image_url  # Возвращаем ссылку
+        return image_url
     except Exception as e:
         print(f"❌ Ошибка сохранения оригинального фото: {e}")
         return None
+
 
 # Папка на сервере, где будем хранить оригиналы фото
 WP_PHOTOS_DIR = "/var/www/html/wp-content/uploads/original_photos"  # Путь на сервере
