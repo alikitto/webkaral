@@ -24,8 +24,6 @@ WP_MEDIA_URL = "https://karal.az/wp-json/wp/v2/media"
 auth = base64.b64encode(f"{WP_USERNAME}:{WP_PASSWORD}".encode()).decode()
 HEADERS = {"Authorization": f"Basic {auth}"}
 
-import os
-
 def save_original_file(file, filename_slug, folder):
     """Сохраняет оригинальный файл (фото/видео) на сервере"""
     try:
