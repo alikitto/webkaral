@@ -48,7 +48,7 @@ CATEGORY_DATA = {
     "144": {"name": ["Qızıl dəst", "Qızıl komplekt"], "slug": "qizil-komplekt-dest"}
 }
 
-@app.route("/")
+@app.route("/home")
 def home():
     return render_template("index.html", categories=CATEGORY_DATA)
 
