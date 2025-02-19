@@ -24,12 +24,6 @@ WP_MEDIA_URL = "https://karal.az/wp-json/wp/v2/media"
 auth = base64.b64encode(f"{WP_USERNAME}:{WP_PASSWORD}".encode()).decode()
 HEADERS = {"Authorization": f"Basic {auth}"}
 
-# Новый правильный путь!
-WP_UPLOADS_DIR = "/www/karal.az/wp-content/uploads/original_photos"
-WP_UPLOADS_URL = "https://karal.az/wp-content/uploads/original_photos"
-
-import os
-
 # Определяем реальный корень проекта
 REAL_WP_ROOT = os.getcwd()  # Узнаем, где реально выполняется код
 WP_UPLOADS_DIR = os.path.join(REAL_WP_ROOT, "wp-content/uploads/original_photos")
@@ -58,7 +52,6 @@ def save_original_file(file, filename_slug, folder):
     except Exception as e:
         print(f"❌ Ошибка сохранения файла: {e}")
         return None
-
 
 
 
