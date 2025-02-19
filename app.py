@@ -27,8 +27,8 @@ HEADERS = {"Authorization": f"Basic {auth}"}
 def save_original_file(file, filename_slug, folder):
     """Сохраняет оригинальный файл (фото/видео) на сервере"""
     try:
-        save_dir = f"/var/www/html/wp-content/uploads/{folder}"  # Корректный путь
-        os.makedirs(save_dir, exist_ok=True)  # Создаём папку, если её нет
+        save_dir = f"/var/www/html/wp-content/uploads/{folder}"  
+        os.makedirs(save_dir, exist_ok=True)  
 
         file_path = os.path.join(save_dir, f"{filename_slug}.jpg")
 
@@ -36,18 +36,23 @@ def save_original_file(file, filename_slug, folder):
         print(f"📌 [DEBUG] Права на папку: {oct(os.stat(save_dir).st_mode)}")
 
         # Пробуем сохранить файл
-        file.save(file_path)  
+        try:
+            file.save(file_path)  
+        except Exception as file_error:
+            print(f"❌ [ERROR] Ошибка при сохранении файла: {file_error}")
+            return None
 
         # Проверяем, действительно ли файл записался
         if os.path.exists(file_path):
             print(f"✅ Оригинальный файл сохранён: {file_path}")
             return f"https://karal.az/wp-content/uploads/{folder}/{filename_slug}.jpg"
         else:
-            print(f"❌ Ошибка: файл НЕ СОХРАНЁН! Возможно, проблема с правами.")
+            print(f"❌ Ошибка: файл НЕ СОХРАНЁН! Возможно, проблема с правами или форматом.")
             return None
     except Exception as e:
         print(f"❌ Ошибка сохранения оригинального файла: {e}")
         return None
+
 
 
 
