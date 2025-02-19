@@ -1,8 +1,8 @@
 flask
+boto3
 woocommerce
 gunicorn
 requests
 python-dotenv
 ffmpeg-python  # ← Убедись, что этот пакет есть
 Pillow==10.4.0
-boto3
