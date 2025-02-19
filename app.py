@@ -1,164 +1,3 @@
-from flask import Flask, render_template, request, jsonify
-import requests
-import os
-from ftplib import FTP
-import io
-import base64
-import random
-import tempfile
-import ffmpeg
-import PIL
-from PIL import Image
-
-app = Flask(__name__)
-
-# WooCommerce API
-WC_API_URL = os.getenv("WC_API_URL", "https://karal.az/wp-json/wc/v3")
-WC_CONSUMER_KEY = os.getenv("WC_CONSUMER_KEY")
-WC_CONSUMER_SECRET = os.getenv("WC_CONSUMER_SECRET")
-
-# WordPress API
-WP_USERNAME = os.getenv("WP_USERNAME", "alikitto")
-WP_PASSWORD = os.getenv("WP_PASSWORD", "HsbD0gjVhsj0Fb1KXrMx4nLQ")
-WP_MEDIA_URL = "https://karal.az/wp-json/wp/v2/media"
-
-# Авторизация
-auth = base64.b64encode(f"{WP_USERNAME}:{WP_PASSWORD}".encode()).decode()
-HEADERS = {"Authorization": f"Basic {auth}"}
-
-# ДАННЫЕ ДЛЯ FTP-ДОСТУПА
-FTP_HOST = "116.202.196.92"
-FTP_PORT = 21
-FTP_USER = "pypy777"
-FTP_PASS = "jN2wR7rD2f"
-FTP_DIR = "/wp-content/uploads/original_photos/"  # Путь на сервере
-
-def upload_file_via_ftp(file, filename_slug):
-    """ Загружает оригинальный файл на FTP сервер """
-    try:
-        print("📌 [DEBUG] Подключаемся к FTP серверу...")
-
-        ftp = FTP(FTP_HOST)
-        ftp.set_debuglevel(2)  # Включаем отладку FTP
-        ftp.login(FTP_USER, FTP_PASS)
-
-        print("✅ Успешно подключились к FTP!")
-
-        ftp.cwd(FTP_DIR)  # Переходим в нужную папку
-        print(f"📌 [DEBUG] Текущая директория FTP: {ftp.pwd()}")
-
-        # Читаем файл в байтовый поток
-        file_data = io.BytesIO(file.read())
-
-        print(f"📌 [DEBUG] Загружаем файл {filename_slug}.jpg ...")
-
-        ftp.storbinary(f"STOR {filename_slug}.jpg", file_data)
-
-        print(f"✅ Файл успешно загружен по FTP: {FTP_DIR}{filename_slug}.jpg")
-
-        ftp.quit()
-        return f"https://karal.az{FTP_DIR}{filename_slug}.jpg"
-    except Exception as e:
-        print(f"❌ Ошибка при загрузке файла по FTP: {e}")
-        return None
-
-        
-def save_original_file(file, filename_slug, folder):
-    """Сохраняет оригинальный файл на сервере через FTP"""
-    return upload_file_via_ftp(file, filename_slug)
-
-
-# Настройки видео и фото
-RESOLUTION_VIDEO = (720, 720)  # 1:1 формат
-RESOLUTION_IMAGE = (1000, 1000)  # 1:1 формат
-BITRATE = "2000k"
-
-CATEGORY_DATA = {
-    "126": {"name": "Qızıl üzük", "slug": "qizil-uzuk"},
-    "132": {"name": "Qızıl sırğa", "slug": "qizil-sirqa"},
-    "140": {"name": "Qızıl sep", "slug": "qizil-sep"},
-    "138": {"name": "Qızıl qolbaq", "slug": "qizil-qolbaq"},
-    "144": {"name": ["Qızıl dəst", "Qızıl komplekt"], "slug": "qizil-komplekt-dest"}
-}
-
-GOLD_PURITY_MAP = {
-    "105": "585 (14K)",
-    "106": "750 (18K)"
-}
-
-# Функция загрузки файлов в WordPress
-import mimetypes
-
-def upload_media(file, filename):
-    """Загружает обработанный файл в WordPress и возвращает ID"""
-    try:
-        files = {"file": (filename, file, "image/jpeg")}
-        response = requests.post(WP_MEDIA_URL, headers=HEADERS, files=files)
-
-        if response.status_code == 201:
-            media_id = response.json().get("id")
-            print(f"✅ Файл загружен в WordPress! ID: {media_id}")
-            return media_id
-        else:
-            print(f"❌ Ошибка загрузки в WordPress: {response.text}")
-            return None
-    except Exception as e:
-        print(f"❌ Ошибка загрузки файла в WordPress: {e}")
-        return None
-
-
-    filename = filename or "uploaded_file.jpg"
-    print(f"🔄 Загружаем файл: {filename}")
-
-    # Определяем MIME-тип файла
-    mime_type, _ = mimetypes.guess_type(filename)
-    if not mime_type:
-        mime_type = "application/octet-stream"  # Фолбэк на случай неизвестного типа
-
-    files = {"file": (filename, file, mime_type)}
-    response = requests.post(WP_MEDIA_URL, headers=HEADERS, files=files)
-
-    if response.status_code == 201:
-        media_id = response.json().get("id")
-        print(f"✅ Файл загружен! ID: {media_id}")
-        return media_id
-    else:
-        print(f"❌ Ошибка загрузки: {response.text}")
-        return None
-
-# Обрезка и центрирование фото 1:1
-from PIL import Image, ImageOps
-
-def process_image(image, filename_slug):
-    """Обрезка фото в 1000x1000 без сохранения на диск"""
-    try:
-        temp_output = os.path.join(tempfile.gettempdir(), f"{filename_slug}.jpg")
-
-        img = Image.open(image)
-
-        # Автоматический поворот изображения
-        img = ImageOps.exif_transpose(img)
-
-        width, height = img.size
-        crop_size = min(width, height)
-        left = (width - crop_size) // 2
-        top = (height - crop_size) // 2
-        right = left + crop_size
-        bottom = top + crop_size
-        img = img.crop((left, top, right, bottom))
-
-        # Масштабируем в 1000x1000
-        img = img.resize((1000, 1000), Image.LANCZOS)
-        img.save(temp_output, format="JPEG")
-
-        print(f"✅ Обработанное изображение сохранено: {temp_output}")
-        return temp_output
-    except Exception as e:
-        print(f"❌ Ошибка обработки фото: {e}")
-        return None
-
-
-# Обрезка и центрирование видео 1:1
 def convert_video_without_resizing(video, filename_slug):
     """Конвертирует видео в MP4 без изменения размера"""
     try:
@@ -232,9 +71,6 @@ def upload_video_to_ftp(video_path, filename_slug):
         print(f"❌ Ошибка при загрузке файла по FTP: {e}")
         return None
 
-@app.route("/")
-def home():
-    return render_template("index.html", categories=CATEGORY_DATA)
 
 @app.route("/add-product", methods=["POST"])
 def add_product():
@@ -273,7 +109,7 @@ def add_product():
                 with open(processed_image, "rb") as img_file:
                     image_id = upload_media(img_file, filename=f"{product_slug}.jpg")
 
-        # 1️⃣ Конвертируем MOV в MP4 (без изменений) и загружаем на FTP
+        # 3️⃣ Конвертируем MOV в MP4 (без изменений) и загружаем на FTP
         original_video_url = None
         if video:
             original_mp4 = convert_video_without_resizing(video, product_slug)
@@ -283,11 +119,10 @@ def add_product():
         # 4️⃣ Конвертируем и загружаем видео в WordPress (720x720)
         video_id = None
         if video:
-            output_filename = f"{product_slug}.mp4"
-            converted_video_path = convert_and_crop_video(video, output_filename)
+            converted_video_path = convert_and_crop_video(video, product_slug)
             if converted_video_path:
                 with open(converted_video_path, "rb") as converted_video:
-                    video_id = upload_media(converted_video, filename=output_filename)
+                    video_id = upload_media(converted_video, filename=f"{product_slug}.mp4")
 
         print(f"✅ [INFO] Оригинальное фото: {original_photo_url}")
         print(f"✅ [INFO] Загруженное изображение ID: {image_id}")
@@ -337,7 +172,3 @@ def add_product():
         else:
             print("❌ [ERROR] Ошибка при добавлении товара")
             return jsonify({"status": "error", "message": "❌ Ошибка при добавлении товара"}), 400
-
-    except Exception as e:
-        print(f"❌ [ERROR] Исключение в add_product: {e}")
-        return jsonify({"status": "error", "message": str(e)}), 500
