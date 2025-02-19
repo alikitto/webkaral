@@ -1,6 +1,8 @@
 from flask import Flask, render_template, request, jsonify
 import requests
 import os
+from ftplib import FTP
+import io
 import base64
 import random
 import tempfile
@@ -24,51 +26,39 @@ WP_MEDIA_URL = "https://karal.az/wp-json/wp/v2/media"
 auth = base64.b64encode(f"{WP_USERNAME}:{WP_PASSWORD}".encode()).decode()
 HEADERS = {"Authorization": f"Basic {auth}"}
 
-# Определяем реальный корень проекта
-REAL_WP_ROOT = os.getcwd()  # Узнаем, где реально выполняется код
-WP_UPLOADS_DIR = os.path.join(REAL_WP_ROOT, "wp-content/uploads/original_photos")
-WP_UPLOADS_URL = "https://karal.az/wp-content/uploads/original_photos"
+# ДАННЫЕ ДЛЯ FTP-ДОСТУПА
+FTP_HOST = "karal.az"
+FTP_USER = "pypy777"
+FTP_PASS = "jN2wR7rD2f"
+FTP_DIR = "/wp-content/uploads/original_photos/"  # Путь на сервере
 
-import os
-
-# ПРАВИЛЬНЫЙ ПУТЬ К WordPress Uploads
-WP_UPLOADS_DIR = "/var/www/karal.az/wp-content/uploads/original_photos"
-WP_UPLOADS_URL = "https://karal.az/wp-content/uploads/original_photos"
-
-def save_original_file(file, filename_slug, folder):
-    """Сохраняет оригинальный файл (фото/видео) на сервере"""
+def upload_file_via_ftp(file, filename_slug):
+    """ Загружает оригинальный файл на FTP сервер """
     try:
-        print(f"📌 [DEBUG] Жёстко заданный путь: {WP_UPLOADS_DIR}")
+        ftp = FTP(FTP_HOST)
+        ftp.login(FTP_USER, FTP_PASS)
+        ftp.cwd(FTP_DIR)  # Переходим в нужную папку
 
-        # Создаём папку, если её нет
-        os.makedirs(WP_UPLOADS_DIR, exist_ok=True)
+        # Читаем файл в байтовый поток
+        file_data = io.BytesIO(file.read())
 
-        file_path = os.path.join(WP_UPLOADS_DIR, f"{filename_slug}.jpg")
-        print(f"📌 [DEBUG] Попытка сохранить файл по пути: {file_path}")
+        ftp.storbinary(f"STOR {filename_slug}.jpg", file_data)
 
-        file.save(file_path)
-
-        if os.path.exists(file_path):
-            print(f"✅ Файл реально сохранён: {file_path}")
-            return f"{WP_UPLOADS_URL}/{filename_slug}.jpg"
-        else:
-            print(f"❌ Файл НЕ СОХРАНЁН!")
-            return None
+        ftp.quit()
+        print(f"✅ Файл успешно загружен по FTP: {FTP_DIR}{filename_slug}.jpg")
+        return f"https://karal.az{FTP_DIR}{filename_slug}.jpg"
     except Exception as e:
-        print(f"❌ Ошибка сохранения файла: {e}")
+        print(f"❌ Ошибка при загрузке файла по FTP: {e}")
         return None
+        
+def save_original_file(file, filename_slug, folder):
+    """Сохраняет оригинальный файл на сервере через FTP"""
+    return upload_file_via_ftp(file, filename_slug)
 
-
-
-
-
-# Папка на сервере, где будем хранить оригиналы фото
-WP_PHOTOS_DIR = "/www/karal.az/wp-content/uploads/original_photos"  # Путь на сервере
-WP_PHOTOS_URL = "https://karal.az/wp-content/uploads/original_photos"  # URL для скачивания
 
 # Настройки видео и фото
-RESOLUTION_VIDEO = (720, 720)  # 4:5 формат
-RESOLUTION_IMAGE = (1000, 1000)  # 4:5 формат
+RESOLUTION_VIDEO = (720, 720)  # 1:1 формат
+RESOLUTION_IMAGE = (1000, 1000)  # 1:1 формат
 BITRATE = "2000k"
 
 CATEGORY_DATA = {
