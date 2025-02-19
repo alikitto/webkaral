@@ -274,11 +274,11 @@ def add_product():
                     image_id = upload_media(img_file, filename=f"{product_slug}.jpg")
 
         # 1️⃣ Конвертируем MOV в MP4 (без изменений) и загружаем на FTP
-original_video_url = None
-if video:
-    original_mp4 = convert_video_without_resizing(video, product_slug)
-    if original_mp4:
-        original_video_url = upload_video_to_ftp(original_mp4, product_slug)
+        original_video_url = None
+        if video:
+            original_mp4 = convert_video_without_resizing(video, product_slug)
+            if original_mp4:
+                original_video_url = upload_video_to_ftp(original_mp4, product_slug)
 
         # 4️⃣ Конвертируем и загружаем видео в WordPress (720x720)
         video_id = None
