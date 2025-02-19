@@ -120,7 +120,7 @@ def upload_media(file_path, filename):
         return None
 
 # ------------------- ОБРАБОТКА ТОВАРА -------------------
-@app.route("/add-product", methods=["POST"])
+@app.route("/", methods=["POST"])
 def add_product():
     try:
         print("📌 [INFO] Получен запрос на добавление товара")
