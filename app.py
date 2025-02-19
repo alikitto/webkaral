@@ -8,7 +8,7 @@ import ffmpeg
 from PIL import Image, ImageOps
 import mimetypes
 
-app = Flask(__name__)
+app = Flask(__name__, template_folder="templates")
 
 # WooCommerce API
 WC_API_URL = os.getenv("WC_API_URL", "https://karal.az/wp-json/wc/v3")
@@ -17,7 +17,7 @@ WC_CONSUMER_SECRET = os.getenv("WC_CONSUMER_SECRET")
 
 # WordPress API
 WP_USERNAME = os.getenv("WP_USERNAME", "alikitto")
-WP_PASSWORD = os.getenv("WP_PASSWORD")
+WP_PASSWORD = os.getenv("WP_PASSWORD", "HsbD0gjVhsj0Fb1KXrMx4nLQ")
 WP_MEDIA_URL = "https://karal.az/wp-json/wp/v2/media"
 
 # Авторизация
@@ -33,7 +33,7 @@ CATEGORY_DATA = {
     "132": {"name": "Qızıl sırğa", "slug": "qizil-sirqa"},
     "140": {"name": "Qızıl sep", "slug": "qizil-sep"},
     "138": {"name": "Qızıl qolbaq", "slug": "qizil-qolbaq"},
-    "144": {"name": "Qızıl dəst", "slug": "qizil-komplekt-dest"}
+    "144": {"name": "Qızıl dəst", "slug": "qizil-komplekt-dest"},
 }
 
 GOLD_PURITY_MAP = {
@@ -62,21 +62,50 @@ GEMSTONE_MAP = {
     "3313": "Almaz"
 }
 
-# Функция обработки изображений
-def process_image(image, filename_slug):
-    temp_output = os.path.join(tempfile.gettempdir(), f"{filename_slug}.jpg")
-    img = Image.open(image)
-    img = ImageOps.exif_transpose(img)
-    img = img.resize(RESOLUTION, Image.LANCZOS)
-    img.save(temp_output, format="JPEG")
-    return temp_output
+# Функция загрузки файлов в WordPress
+def upload_media(file, filename):
+    """ Загружает файл в WordPress и возвращает ID """
+    mime_type, _ = mimetypes.guess_type(filename)
+    if not mime_type:
+        mime_type = "application/octet-stream"
 
-# Функция обработки видео
+    files = {"file": (filename, file, mime_type)}
+    response = requests.post(WP_MEDIA_URL, headers=HEADERS, files=files)
+
+    if response.status_code == 201:
+        return response.json().get("id")
+    return None
+
+# Обрезка и центрирование фото
+def process_image(image, filename_slug):
+    try:
+        temp_output = os.path.join(tempfile.gettempdir(), f"{filename_slug}.jpg")
+        img = Image.open(image)
+        img = ImageOps.exif_transpose(img)
+        img = img.resize(RESOLUTION, Image.LANCZOS)
+        img.save(temp_output, format="JPEG")
+        return temp_output
+    except Exception as e:
+        print(f"❌ Ошибка обработки фото: {e}")
+        return None
+
+# Обрезка и центрирование видео
 def convert_and_crop_video(video, output_filename):
-    temp_output = os.path.join(tempfile.gettempdir(), output_filename)
-    ffmpeg.input(video).filter("scale", RESOLUTION[0], RESOLUTION[1])\
-        .output(temp_output, vcodec="libx264", acodec="aac", bitrate=BITRATE).run(overwrite_output=True)
-    return temp_output
+    try:
+        temp_output = os.path.join(tempfile.gettempdir(), output_filename)
+        ffmpeg.input(video).filter(
+            "scale", RESOLUTION[0], RESOLUTION[1]
+        ).output(
+            temp_output, vcodec="libx264", acodec="aac", bitrate=BITRATE
+        ).run(overwrite_output=True)
+        return temp_output
+    except Exception as e:
+        print(f"❌ Ошибка конвертации видео: {e}")
+        return None
+
+@app.route("/")
+def home():
+    return render_template("index.html")
 
 @app.route("/add-product", methods=["POST"])
 def add_product():
@@ -99,19 +128,24 @@ def add_product():
         product_name = category_info["name"]
         product_slug = f"{category_info['slug']}-{random.randint(1000, 9999)}"
 
+        # Загрузка изображения
         image_id = None
         if image:
             processed_image = process_image(image, product_slug)
-            with open(processed_image, "rb") as img_file:
-                image_id = upload_media(img_file, filename=f"{product_slug}.jpg")
+            if processed_image:
+                with open(processed_image, "rb") as img_file:
+                    image_id = upload_media(img_file, filename=f"{product_slug}.jpg")
 
+        # Загрузка видео
         video_id = None
         if video:
             output_filename = f"{product_slug}.mp4"
             converted_video_path = convert_and_crop_video(video, output_filename)
-            with open(converted_video_path, "rb") as converted_video:
-                video_id = upload_media(converted_video, filename=output_filename)
+            if converted_video_path:
+                with open(converted_video_path, "rb") as converted_video:
+                    video_id = upload_media(converted_video, filename=output_filename)
 
+        # Данные для загрузки товара
         product_data = {
             "name": product_name,
             "slug": product_slug,
@@ -134,9 +168,14 @@ def add_product():
             json=product_data,
             params={"consumer_key": WC_CONSUMER_KEY, "consumer_secret": WC_CONSUMER_SECRET}
         )
-        return jsonify({"status": "success", "message": "✅ Товар добавлен!"}) if response.status_code == 201 else jsonify({"status": "error"})
+
+        if response.status_code == 201:
+            return jsonify({"status": "success", "message": "✅ Товар добавлен!"})
+        else:
+            return jsonify({"status": "error", "message": "❌ Ошибка при добавлении товара"}), 400
+
     except Exception as e:
-        return jsonify({"status": "error", "message": str(e)})
+        return jsonify({"status": "error", "message": str(e)}), 500
 
 if __name__ == "__main__":
     app.run(debug=True, host="0.0.0.0", port=5000)
