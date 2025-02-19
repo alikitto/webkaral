@@ -24,14 +24,10 @@ WP_MEDIA_URL = "https://karal.az/wp-json/wp/v2/media"
 auth = base64.b64encode(f"{WP_USERNAME}:{WP_PASSWORD}".encode()).decode()
 HEADERS = {"Authorization": f"Basic {auth}"}
 
-# Папка на сервере, где будем хранить оригиналы фото
-WP_PHOTOS_DIR = "/var/www/html/wp-content/uploads/original_photos"  # Путь на сервере
-WP_PHOTOS_URL = "https://karal.az/wp-content/uploads/original_photos"  # URL для скачивания
-
 def save_original_photo(image, filename_slug):
     """Сохраняет оригинальное фото в отдельную папку на сервере"""
     try:
-        WP_PHOTOS_DIR = "/var/www/html/wp-content/uploads/original_photos"
+        WP_PHOTOS_DIR = "/www/html/wp-content/uploads/original_photos"
         WP_PHOTOS_URL = "https://karal.az/wp-content/uploads/original_photos"
 
         if not os.path.exists(WP_PHOTOS_DIR):
@@ -46,6 +42,10 @@ def save_original_photo(image, filename_slug):
     except Exception as e:
         print(f"❌ Ошибка сохранения оригинального фото: {e}")
         return None
+
+# Папка на сервере, где будем хранить оригиналы фото
+WP_PHOTOS_DIR = "/var/www/html/wp-content/uploads/original_photos"  # Путь на сервере
+WP_PHOTOS_URL = "https://karal.az/wp-content/uploads/original_photos"  # URL для скачивания
 
 # Настройки видео и фото
 RESOLUTION_VIDEO = (720, 720)  # 4:5 формат
