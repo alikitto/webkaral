@@ -24,25 +24,33 @@ WP_MEDIA_URL = "https://karal.az/wp-json/wp/v2/media"
 auth = base64.b64encode(f"{WP_USERNAME}:{WP_PASSWORD}".encode()).decode()
 HEADERS = {"Authorization": f"Basic {auth}"}
 
+import os
+
 def save_original_file(file, filename_slug, folder):
     """Сохраняет оригинальный файл (фото/видео) на сервере"""
     try:
-        save_dir = f"/var/www/html/wp-content/uploads/{folder}"  # Уточнённый путь
+        save_dir = f"/var/www/html/wp-content/uploads/{folder}"  # Корректный путь
         os.makedirs(save_dir, exist_ok=True)  # Создаём папку, если её нет
 
         file_path = os.path.join(save_dir, f"{filename_slug}.jpg")
-        file.save(file_path)  # Сохраняем файл
 
-        # Проверяем, действительно ли файл сохранён
+        print(f"📌 [DEBUG] Проверяем путь: {save_dir}")
+        print(f"📌 [DEBUG] Права на папку: {oct(os.stat(save_dir).st_mode)}")
+
+        # Пробуем сохранить файл
+        file.save(file_path)  
+
+        # Проверяем, действительно ли файл записался
         if os.path.exists(file_path):
             print(f"✅ Оригинальный файл сохранён: {file_path}")
             return f"https://karal.az/wp-content/uploads/{folder}/{filename_slug}.jpg"
         else:
-            print(f"❌ Ошибка: файл не был сохранён!")
+            print(f"❌ Ошибка: файл НЕ СОХРАНЁН! Возможно, проблема с правами.")
             return None
     except Exception as e:
         print(f"❌ Ошибка сохранения оригинального файла: {e}")
         return None
+
 
 
 # Папка на сервере, где будем хранить оригиналы фото
