@@ -48,6 +48,10 @@ CATEGORY_DATA = {
     "144": {"name": ["Qızıl dəst", "Qızıl komplekt"], "slug": "qizil-komplekt-dest"}
 }
 
+@app.route("/")
+def home():
+    return render_template("index.html", categories=CATEGORY_DATA)
+
 async def upload_to_r2(file_path, key):
     """Uploads a file to Cloudflare R2"""
     try:
@@ -58,52 +62,8 @@ async def upload_to_r2(file_path, key):
         print(f"❌ Error uploading to R2: {e}")
         return None
 
-async def process_image(image, filename_slug):
-    """Resize image to 1000x1000 and upload to WordPress"""
-    try:
-        temp_output = os.path.join(tempfile.gettempdir(), f"{filename_slug}.jpg")
-        img = Image.open(image)
-        img = ImageOps.exif_transpose(img)
-        img = img.crop((0, 0, min(img.size), min(img.size)))
-        img = img.resize((1000, 1000), Image.LANCZOS)
-        img.save(temp_output, format="JPEG")
-        return temp_output
-    except Exception as e:
-        print(f"❌ Image processing error: {e}")
-        return None
-
-async def process_video(video, filename_slug):
-    """Convert video to 720x720 resolution and save temporarily"""
-    try:
-        temp_input = tempfile.NamedTemporaryFile(delete=False, suffix=".mp4")
-        temp_output = os.path.join(tempfile.gettempdir(), f"{filename_slug}.mp4")
-        video.save(temp_input.name)
-        
-        ffmpeg.input(temp_input.name).filter("scale", 720, 720).output(
-            temp_output, vcodec="libx264", acodec="aac", bitrate=BITRATE
-        ).run(overwrite_output=True)
-        
-        return temp_output
-    except Exception as e:
-        print(f"❌ Video processing error: {e}")
-        return None
-
-async def upload_media(file_path, filename):
-    """Uploads processed image to WordPress"""
-    try:
-        with open(file_path, "rb") as file:
-            response = requests.post(WP_MEDIA_URL, headers=HEADERS, files={"file": (filename, file, "image/jpeg")})
-            if response.status_code == 201:
-                return response.json().get("id")
-        return None
-    except Exception as e:
-        print(f"❌ Media upload error: {e}")
-        return None
-@app.route("/")
-def home():
-    return render_template("index.html", categories=CATEGORY_DATA)
 @app.route("/add-product", methods=["POST"])
-async def add_product():
+def add_product():
     try:
         data = request.form
         category_id = data.get("category")
@@ -119,16 +79,16 @@ async def add_product():
         
         if image:
             photo_key = f"original_photos/{product_slug}.jpg"
-            original_photo_url = await upload_to_r2(image, photo_key)
-            processed_image = await process_image(image, product_slug)
-            image_id = await upload_media(processed_image, f"{product_slug}.jpg")
+            original_photo_url = upload_to_r2(image, photo_key)
+            processed_image = process_image(image, product_slug)
+            image_id = upload_media(processed_image, f"{product_slug}.jpg")
         
         if video:
             video_key = f"original_videos/{product_slug}.mp4"
-            original_video_url = await upload_to_r2(video, video_key)
-            processed_video = await process_video(video, product_slug)
+            original_video_url = upload_to_r2(video, video_key)
+            processed_video = process_video(video, product_slug)
             video_r2_key = f"product_videos/{product_slug}.mp4"
-            video_url = await upload_to_r2(processed_video, video_r2_key)
+            video_url = upload_to_r2(processed_video, video_r2_key)
         
         # Create product in WooCommerce
         product_data = {
