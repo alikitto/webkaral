@@ -28,28 +28,37 @@ HEADERS = {"Authorization": f"Basic {auth}"}
 WP_UPLOADS_DIR = "/www/karal.az/wp-content/uploads/original_photos"
 WP_UPLOADS_URL = "https://karal.az/wp-content/uploads/original_photos"
 
+import os
+
+# Определяем реальный корень проекта
+REAL_WP_ROOT = os.getcwd()  # Узнаем, где реально выполняется код
+WP_UPLOADS_DIR = os.path.join(REAL_WP_ROOT, "wp-content/uploads/original_photos")
+WP_UPLOADS_URL = "https://karal.az/wp-content/uploads/original_photos"
+
 def save_original_file(file, filename_slug, folder):
     """Сохраняет оригинальный файл (фото/видео) на сервере"""
     try:
-        save_dir = WP_UPLOADS_DIR  # Используем правильный путь!
-        os.makedirs(save_dir, exist_ok=True)
+        print(f"📌 [DEBUG] Рабочая директория: {REAL_WP_ROOT}")
+        print(f"📌 [DEBUG] Окончательный путь сохранения: {WP_UPLOADS_DIR}")
 
-        file_path = os.path.join(save_dir, f"{filename_slug}.jpg")
+        # Создаём папку, если её нет
+        os.makedirs(WP_UPLOADS_DIR, exist_ok=True)
 
+        file_path = os.path.join(WP_UPLOADS_DIR, f"{filename_slug}.jpg")
         print(f"📌 [DEBUG] Попытка сохранить файл по пути: {file_path}")
 
         file.save(file_path)
 
         if os.path.exists(file_path):
             print(f"✅ Файл реально сохранён: {file_path}")
-            print(f"📌 [DEBUG] Файл доступен по: {WP_UPLOADS_URL}/{filename_slug}.jpg")
             return f"{WP_UPLOADS_URL}/{filename_slug}.jpg"
         else:
-            print(f"❌ Файл НЕ СОХРАНЁН! Проверяем альтернативные пути...")
+            print(f"❌ Файл НЕ СОХРАНЁН!")
             return None
     except Exception as e:
         print(f"❌ Ошибка сохранения файла: {e}")
         return None
+
 
 
 
