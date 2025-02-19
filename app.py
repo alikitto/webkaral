@@ -273,7 +273,7 @@ def add_product():
                 with open(processed_image, "rb") as img_file:
                     image_id = upload_media(img_file, filename=f"{product_slug}.jpg")
 
-# 1️⃣ Конвертируем MOV в MP4 (без изменений) и загружаем на FTP
+        # 1️⃣ Конвертируем MOV в MP4 (без изменений) и загружаем на FTP
 original_video_url = None
 if video:
     original_mp4 = convert_video_without_resizing(video, product_slug)
