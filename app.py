@@ -52,7 +52,7 @@ CATEGORY_DATA = {
 def home():
     return render_template("index.html", categories=CATEGORY_DATA)
 
-async def upload_to_r2(file_path, key):
+def upload_to_r2(file_path, key):
     """Uploads a file to Cloudflare R2"""
     try:
         with open(file_path, "rb") as file:
@@ -79,16 +79,16 @@ def add_product():
         
         if image:
             photo_key = f"original_photos/{product_slug}.jpg"
-            original_photo_url = upload_to_r2(image, photo_key)
+            original_photo_url = asyncio.run(upload_to_r2(image, photo_key))
             processed_image = process_image(image, product_slug)
             image_id = upload_media(processed_image, f"{product_slug}.jpg")
         
         if video:
             video_key = f"original_videos/{product_slug}.mp4"
-            original_video_url = upload_to_r2(video, video_key)
+            original_video_url = asyncio.run(upload_to_r2(video, video_key))
             processed_video = process_video(video, product_slug)
             video_r2_key = f"product_videos/{product_slug}.mp4"
-            video_url = upload_to_r2(processed_video, video_r2_key)
+            video_url = asyncio.run(upload_to_r2(processed_video, video_r2_key))
         
         # Create product in WooCommerce
         product_data = {
