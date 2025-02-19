@@ -27,8 +27,7 @@ auth = base64.b64encode(f"{WP_USERNAME}:{WP_PASSWORD}".encode()).decode()
 HEADERS = {"Authorization": f"Basic {auth}"}
 
 # ДАННЫЕ ДЛЯ FTP-ДОСТУПА
-FTP_HOST = "116.202.196.92"
-FTP_PORT = 21
+FTP_HOST = "116.202.196.92:21"
 FTP_USER = "pypy777"
 FTP_PASS = "jN2wR7rD2f"
 FTP_DIR = "/wp-content/uploads/original_photos/"  # Путь на сервере
