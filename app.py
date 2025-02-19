@@ -24,24 +24,21 @@ WP_MEDIA_URL = "https://karal.az/wp-json/wp/v2/media"
 auth = base64.b64encode(f"{WP_USERNAME}:{WP_PASSWORD}".encode()).decode()
 HEADERS = {"Authorization": f"Basic {auth}"}
 
-def save_original_photo(image, filename_slug):
-    """Сохраняет оригинальное фото в папку"""
+def save_original_file(file, filename_slug, folder):
+    """Сохраняет оригинальный файл (фото/видео) на сервере"""
     try:
-        WP_PHOTOS_DIR = "/www/karal.az/wp-content/uploads/original_photos"
-        WP_PHOTOS_URL = "https://karal.az/wp-content/uploads/original_photos"
+        save_dir = f"/www/karal.az/wp-content/uploads/{folder}"
+        os.makedirs(save_dir, exist_ok=True)  # Создаём папку, если её нет
 
-        if not os.path.exists(WP_PHOTOS_DIR):
-            os.makedirs(WP_PHOTOS_DIR, exist_ok=True)
+        file_path = os.path.join(save_dir, f"{filename_slug}.jpg")
+        file.save(file_path)  # Сохраняем файл
 
-        file_path = os.path.join(WP_PHOTOS_DIR, f"{filename_slug}.jpg")
-        print(f"📌 [DEBUG] Сохраняем файл по пути: {file_path}")
+        print(f"✅ Оригинальный файл сохранён: {file_path}")
+        return f"https://karal.az/wp-content/uploads/{folder}/{filename_slug}.jpg"
+    except Exception as e:
+        print(f"❌ Ошибка сохранения оригинального файла: {e}")
+        return None
 
-        image.save(file_path)
-
-        # Проверяем, создался ли файл
-        if not os.path.exists(file_path):
-            print("❌ Ошибка: файл не был создан!")
-            return None
 
         image_url = f"{WP_PHOTOS_URL}/{filename_slug}.jpg"
         print(f"✅ Оригинальное фото сохранено: {image_url}")
@@ -76,11 +73,23 @@ GOLD_PURITY_MAP = {
 # Функция загрузки файлов в WordPress
 import mimetypes
 
-def upload_media(file, filename=None):
-    """ Загружает файл в WordPress и возвращает ID """
-    if not file:
-        print("❌ Ошибка: Файл отсутствует!")
+def upload_media(file, filename):
+    """Загружает обработанный файл в WordPress и возвращает ID"""
+    try:
+        files = {"file": (filename, file, "image/jpeg")}
+        response = requests.post(WP_MEDIA_URL, headers=HEADERS, files=files)
+
+        if response.status_code == 201:
+            media_id = response.json().get("id")
+            print(f"✅ Файл загружен в WordPress! ID: {media_id}")
+            return media_id
+        else:
+            print(f"❌ Ошибка загрузки в WordPress: {response.text}")
+            return None
+    except Exception as e:
+        print(f"❌ Ошибка загрузки файла в WordPress: {e}")
         return None
+
 
     filename = filename or "uploaded_file.jpg"
     print(f"🔄 Загружаем файл: {filename}")
@@ -171,7 +180,6 @@ def add_product():
 
         category_id = request.form.get("category")
         weight = request.form.get("weight")
-        gold_purity_id = request.form.get("gold_purity")
         price = request.form.get("price")
         sale_price = request.form.get("sale_price", "0")
         image = request.files.get("image")
@@ -181,63 +189,61 @@ def add_product():
             print("❌ [ERROR] Не заполнены обязательные поля")
             return jsonify({"status": "error", "message": "❌ Обязательные поля не заполнены"}), 400
 
-        gold_purity = GOLD_PURITY_MAP.get(gold_purity_id, "585 (14K)")
-        category_info = CATEGORY_DATA.get(category_id, {})
-        product_name = random.choice(category_info["name"]) if isinstance(category_info["name"], list) else category_info["name"]
-        product_slug = f"{category_info['slug']}-{random.randint(1000, 9999)}"
+        product_slug = f"product-{random.randint(1000, 9999)}"
 
-        print(f"📌 [INFO] Создаём товар: {product_name}, Slug: {product_slug}, Вес: {weight}, Цена: {price}")
-
-        # 1️⃣ Загрузка оригинального фото в папку
+        # 1️⃣ Сохраняем оригинал фото в `/original_photos/`
         original_photo_url = None
         if image:
-            original_photo_url = save_original_photo(image, product_slug)
+            original_photo_url = save_original_file(image, product_slug, "original_photos")
 
-        # 2️⃣ Обрезаем и загружаем обработанное фото (1000x1000) в медиабиблиотеку
+        # 2️⃣ Обрабатываем и загружаем в WordPress (1000x1000)
         image_id = None
         if image:
-            processed_image = process_image(image, product_slug)  # Конвертация из памяти, не из файла
+            processed_image = process_image(image, product_slug)
             if processed_image:
-                print("📌 [INFO] Загружаем обработанное изображение...")
                 with open(processed_image, "rb") as img_file:
                     image_id = upload_media(img_file, filename=f"{product_slug}.jpg")
 
-        # 3️⃣ Загрузка видео
+        # 3️⃣ Сохраняем оригинал видео в `/original_videos/`
+        original_video_url = None
+        if video:
+            original_video_url = save_original_file(video, product_slug, "original_videos")
+
+        # 4️⃣ Конвертируем и загружаем видео в WordPress (720x720)
         video_id = None
         if video:
             output_filename = f"{product_slug}.mp4"
             converted_video_path = convert_and_crop_video(video, output_filename)
             if converted_video_path:
                 with open(converted_video_path, "rb") as converted_video:
-                    print("📌 [INFO] Загружаем видео...")
                     video_id = upload_media(converted_video, filename=output_filename)
 
+        print(f"✅ [INFO] Оригинальное фото: {original_photo_url}")
         print(f"✅ [INFO] Загруженное изображение ID: {image_id}")
+        print(f"✅ [INFO] Оригинальное видео: {original_video_url}")
         print(f"✅ [INFO] Загруженное видео ID: {video_id}")
 
-        # 4️⃣ Подготавливаем данные товара
+        # 5️⃣ Создаём товар в WooCommerce
         product_data = {
-            "name": product_name,
+            "name": f"Товар {product_slug}",
             "slug": product_slug,
             "regular_price": price,
             "sale_price": sale_price if sale_price != "0" else None,
             "categories": [{"id": int(category_id)}],
             "images": [{"id": image_id}] if image_id else [],
-            "attributes": [
-                {"id": 2, "name": "Əyar", "options": [gold_purity], "visible": True, "variation": False}
-            ],
             "meta_data": [
                 {"key": "_weight", "value": weight},
-                {"key": "_product_video_autoplay", "value": "on"},
-                {"key": "_gold_purity", "value": gold_purity}
+                {"key": "_product_video_autoplay", "value": "on"}
             ]
         }
 
-        # 5️⃣ Добавляем ссылку на оригинал в мета-данные товара
+        # Добавляем ссылки на оригиналы в мета-данные
         if original_photo_url:
             product_data["meta_data"].append({"key": "_original_photo_url", "value": original_photo_url})
+        if original_video_url:
+            product_data["meta_data"].append({"key": "_original_video_url", "value": original_video_url})
 
-        # 6️⃣ Добавляем видео в мета-данные товара
+        # Добавляем видео в WooCommerce
         if video_id:
             product_data["meta_data"].append({"key": "_product_video_gallery", "value": video_id})
 
@@ -260,9 +266,3 @@ def add_product():
     except Exception as e:
         print(f"❌ [ERROR] Исключение в add_product: {e}")
         return jsonify({"status": "error", "message": str(e)}), 500
-
-
-
-
-
-
