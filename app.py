@@ -7,6 +7,7 @@ import base64
 import random
 import tempfile
 import ffmpeg
+import threading  # Добавлено для фоновой загрузки
 from PIL import Image, ImageOps
 
 app = Flask(__name__)
@@ -32,33 +33,34 @@ FTP_PASS = "jN2wR7rD2f"
 FTP_MOV_DIR = "/wp-content/uploads/original_videos/"  # Путь для MOV
 
 # Настройки видео
-BITRATE = "1500k"  # Уменьшил для скорости
-RESOLUTION_VIDEO = (720, 720)
+BITRATE = "1700k"  # Оптимизировано для скорости
+RESOLUTION_VIDEO = (600, 600)  # Новый размер
 
 # ------------------- ФУНКЦИИ -------------------
 def upload_file_via_ftp(file_path, filename_slug, ftp_dir):
-    """ Быстрая загрузка файла на FTP сервер """
-    try:
-        print("📌 [DEBUG] Подключаемся к FTP серверу...")
+    """ Фоновая загрузка файла на FTP сервер """
+    def ftp_upload():
+        try:
+            print("📌 [DEBUG] Подключаемся к FTP серверу...")
 
-        ftp = FTP(FTP_HOST)
-        ftp.login(FTP_USER, FTP_PASS)
-        ftp.cwd(ftp_dir)
+            with FTP(FTP_HOST) as ftp:
+                ftp.login(FTP_USER, FTP_PASS)
+                ftp.cwd(ftp_dir)
 
-        print(f"📌 [DEBUG] Загружаем файл {filename_slug} ...")
+                print(f"📌 [DEBUG] Загружаем файл {filename_slug} ...")
 
-        with open(file_path, "rb") as file:
-            ftp.storbinary(f"STOR {filename_slug}", file, 1024 * 64)  # Увеличен буфер
+                with open(file_path, "rb") as file:
+                    ftp.storbinary(f"STOR {filename_slug}", file, 1024 * 64)  # Быстрая передача
 
-        ftp.quit()
-        print(f"✅ Файл успешно загружен по FTP: {ftp_dir}{filename_slug}")
-        return f"https://karal.az{ftp_dir}{filename_slug}"
-    except Exception as e:
-        print(f"❌ Ошибка при загрузке файла по FTP: {e}")
-        return None
+            print(f"✅ Файл успешно загружен по FTP: {ftp_dir}{filename_slug}")
+        except Exception as e:
+            print(f"❌ Ошибка при загрузке файла по FTP: {e}")
+
+    # Запускаем загрузку в фоне
+    threading.Thread(target=ftp_upload, daemon=True).start()
 
 def convert_video_to_mp4(video, filename_slug):
-    """Конвертирует MOV в MP4 без изменения размера"""
+    """ Конвертирует MOV в MP4 (600x600, 1700k) """
     try:
         temp_input = tempfile.NamedTemporaryFile(delete=False, suffix=".mov")
         temp_output = os.path.join(tempfile.gettempdir(), f"{filename_slug}.mp4")
@@ -66,36 +68,14 @@ def convert_video_to_mp4(video, filename_slug):
         print(f"🔄 Сохраняем оригинальное MOV {video.filename} во временный файл {temp_input.name}")
         video.save(temp_input.name)
 
-        print("🔄 Конвертируем в MP4 без изменения размера...")
-        ffmpeg.input(temp_input.name).output(
-            temp_output, vcodec="libx264", acodec="aac", bitrate=BITRATE
-        ).run(overwrite_output=True)
-
-        print(f"✅ Конвертация завершена: {temp_output}")
-        return temp_output
-    except Exception as e:
-        print(f"❌ Ошибка конвертации видео: {e}")
-        return None
-
-def convert_and_crop_video(video, filename_slug):
-    """ Обрезка видео в 1:1 и конвертация в MP4 """
-    try:
-        temp_input = tempfile.NamedTemporaryFile(delete=False, suffix=".mov")
-        temp_output = os.path.join(tempfile.gettempdir(), f"{filename_slug}_cropped.mp4")
-
-        print(f"🔄 Сохраняем MOV {video.filename} во временный файл {temp_input.name}")
-        video.save(temp_input.name)
-
-        print("🔄 Обрезаем и конвертируем в 1:1 (720x720)...")
+        print("🔄 Конвертируем в MP4 (600x600, 1700k)...")
         ffmpeg.input(temp_input.name).filter(
-            "crop", "min(iw,ih)", "min(iw,ih)", "(iw-min(iw,ih))/2", "(ih-min(iw,ih))/2"
-        ).filter(
             "scale", RESOLUTION_VIDEO[0], RESOLUTION_VIDEO[1]
         ).output(
             temp_output, vcodec="libx264", acodec="aac", bitrate=BITRATE
         ).run(overwrite_output=True)
 
-        print(f"✅ Конвертация и обрезка завершены: {temp_output}")
+        print(f"✅ Конвертация завершена: {temp_output}")
         return temp_output
     except Exception as e:
         print(f"❌ Ошибка конвертации видео: {e}")
@@ -140,23 +120,41 @@ def add_product():
 
         product_slug = f"product-{random.randint(1000, 9999)}"
 
-        # 1️⃣ Конвертируем MOV в MP4 (без изменений) и загружаем на FTP
-        original_video_url = None
-        if video:
-            original_mp4 = convert_video_to_mp4(video, product_slug)
-            if original_mp4:
-                original_video_url = upload_file_via_ftp(original_mp4, f"{product_slug}.mp4", FTP_MOV_DIR)
-
-        # 2️⃣ Конвертируем и загружаем обрезанное видео (720x720) в WordPress
+        # 1️⃣ Конвертируем MOV в MP4 (600x600, 1700k) и сразу добавляем в товар
         video_id = None
         if video:
-            cropped_video_path = convert_and_crop_video(video, product_slug)
-            if cropped_video_path:
-                video_id = upload_media(cropped_video_path, f"{product_slug}.mp4")
+            converted_mp4 = convert_video_to_mp4(video, product_slug)
+            if converted_mp4:
+                video_id = upload_media(converted_mp4, f"{product_slug}.mp4")
+
+        # 2️⃣ Загружаем MOV в FTP **фоново** (НЕ задерживает процесс)
+        if video:
+            temp_input = tempfile.NamedTemporaryFile(delete=False, suffix=".mov")
+            video.save(temp_input.name)
+            upload_file_via_ftp(temp_input.name, f"{product_slug}.mov", FTP_MOV_DIR)
 
         print(f"✅ Загруженное видео ID: {video_id}")
 
-        return jsonify({"status": "success"})
+        # 3️⃣ Создаём товар в WooCommerce
+        product_data = {
+            "name": f"Product {product_slug}",
+            "slug": product_slug,
+            "regular_price": price,
+            "categories": [{"id": int(category_id)}],
+            "meta_data": [
+                {"key": "_weight", "value": weight},
+                {"key": "_product_video_gallery", "value": video_id} if video_id else {}
+            ]
+        }
+
+        response = requests.post(
+            WC_API_URL + "/products",
+            json=product_data,
+            params={"consumer_key": WC_CONSUMER_KEY, "consumer_secret": WC_CONSUMER_SECRET}
+        )
+
+        print(f"📌 [INFO] WooCommerce ответ: {response.status_code}")
+        return jsonify({"status": "success" if response.status_code == 201 else "error"})
 
     except Exception as e:
         print(f"❌ Ошибка: {e}")
