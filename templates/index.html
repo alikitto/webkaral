@@ -32,31 +32,6 @@
             border: 1px solid #ccc;
             border-radius: 5px;
         }
-        .upload-box {
-            width: 100%;
-            height: 160px;
-            border: 2px dashed #ddd;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            flex-direction: column;
-            cursor: pointer;
-            position: relative;
-        }
-        .upload-box img, .upload-box video {
-            max-width: 100%;
-            max-height: 140px;
-            display: none;
-            margin-top: 10px;
-            border-radius: 5px;
-        }
-        .remove-media {
-            display: none;
-            margin-top: 5px;
-            color: red;
-            cursor: pointer;
-            font-size: 14px;
-        }
         button {
             background: #28a745;
             color: white;
@@ -71,41 +46,12 @@
         button:hover {
             background: #218838;
         }
-        
-        /* Прелоадер */
-        #overlay {	
-            position: fixed;
-            top: 0;
-            z-index: 1000;
-            width: 100%;
-            height: 100%;
-            display: none;
-            background: rgba(0, 0, 0, 0.6);
-        }
-        .cv-spinner {
-            height: 100%;
-            display: flex;
-            justify-content: center;
-            align-items: center;  
-        }
-        .spinner {
-            width: 50px;
-            height: 50px;
-            border: 4px #ddd solid;
-            border-top: 4px #2e93e6 solid;
-            border-radius: 50%;
-            animation: spin 0.8s infinite linear;
-        }
-        @keyframes spin {
-            100% { transform: rotate(360deg); }
-        }
     </style>
 </head>
 <body>
     <div class="container">
         <h2>Добавление товара</h2>
         <form id="productForm" action="/add-product" method="POST" enctype="multipart/form-data">
-            
             <label for="category">Категория:</label>
             <select id="category" name="category">
                 <option value="126">Qızıl üzüklər</option>
@@ -121,6 +67,32 @@
                 <option value="106">750 (18K)</option>
             </select>
 
+            <label for="gold_color">Цвет золота:</label>
+            <select id="gold_color" name="gold_color">
+                <option value="269">Ağ qızıl</option>
+                <option value="267">Sarı qızıl</option>
+                <option value="280">Ağ və sarı</option>
+                <option value="271">Rose Gold</option>
+            </select>
+
+            <label for="gemstone">Камень:</label>
+            <select id="gemstone" name="gemstone">
+                <option value="29263">Daşsız</option>
+                <option value="282">Brilliant</option>
+                <option value="29267">Svarovski</option>
+                <option value="29271">Sadə qaş</option>
+                <option value="29273">Zümrüd</option>
+                <option value="29269">Mirvari</option>
+                <option value="29265">Sapfir</option>
+                <option value="336">Ametist</option>
+                <option value="283">Korund</option>
+                <option value="109">Topaz</option>
+                <option value="3313">Almaz</option>
+            </select>
+
+            <label for="karatqr">Карат:</label>
+            <input type="text" id="karatqr" name="karatqr" required>
+
             <label for="weight">Вес (г):</label>
             <input type="number" step="0.01" id="weight" name="weight" required>
 
@@ -131,97 +103,13 @@
             <input type="number" step="0.01" id="sale_price" name="sale_price">
 
             <label>Изображение товара:</label>
-            <div class="upload-box" onclick="document.getElementById('image').click();">
-                <p>📷 Нажмите, чтобы загрузить фото</p>
-                <input type="file" id="image" name="image" accept="image/*" style="display: none;">
-                <img id="previewImage" alt="Превью изображения">
-                <span class="remove-media" onclick="removeImage()">Удалить фото</span>
-            </div>
+            <input type="file" id="image" name="image" accept="image/*" required>
 
             <label>Видео товара:</label>
-            <div class="upload-box" onclick="document.getElementById('video').click();">
-                <p>🎥 Нажмите, чтобы загрузить видео</p>
-                <input type="file" id="video" name="video" accept="video/mp4,video/ogg,video/webm" style="display: none;">
-                <video id="previewVideo" controls></video>
-                <span class="remove-media" onclick="removeVideo()">Удалить видео</span>
-            </div>
+            <input type="file" id="video" name="video" accept="video/mp4,video/ogg,video/webm">
 
             <button type="submit">Добавить товар</button>
         </form>
     </div>
-
-    <!-- Прелоадер -->
-    <div id="overlay">
-        <div class="cv-spinner">
-            <span class="spinner"></span>
-        </div>
-    </div>
-
-    <script>
-        document.getElementById("image").addEventListener("change", function(event) {
-            const file = event.target.files[0];
-            if (file) {
-                const reader = new FileReader();
-                reader.onload = function(e) {
-                    const previewImage = document.getElementById("previewImage");
-                    previewImage.src = e.target.result;
-                    previewImage.style.display = "block";
-                    document.querySelector(".remove-media").style.display = "block";
-                };
-                reader.readAsDataURL(file);
-            }
-        });
-
-        function removeImage() {
-            document.getElementById("image").value = "";
-            document.getElementById("previewImage").style.display = "none";
-            document.querySelector(".remove-media").style.display = "none";
-        }
-
-        document.getElementById("video").addEventListener("change", function(event) {
-            const file = event.target.files[0];
-            if (file) {
-                const reader = new FileReader();
-                reader.onload = function(e) {
-                    const previewVideo = document.getElementById("previewVideo");
-                    previewVideo.src = e.target.result;
-                    previewVideo.style.display = "block";
-                    document.querySelectorAll(".remove-media")[1].style.display = "block";
-                };
-                reader.readAsDataURL(file);
-            }
-        });
-
-        function removeVideo() {
-            document.getElementById("video").value = "";
-            document.getElementById("previewVideo").style.display = "none";
-            document.querySelectorAll(".remove-media")[1].style.display = "none";
-        }
-
-        // Прелоадер
-        $(document).ready(function(){
-            $("#productForm").submit(function(e){
-                e.preventDefault();
-                $("#overlay").fadeIn(300);
-
-                let formData = new FormData(this);
-                $.ajax({
-                    type: "POST",
-                    url: "/add-product",
-                    data: formData,
-                    processData: false,
-                    contentType: false,
-                    success: function(response){
-                        alert(response.message);
-                        $("#overlay").fadeOut(300);
-                    },
-                    error: function(){
-                        alert("Ошибка при добавлении товара");
-                        $("#overlay").fadeOut(300);
-                    }
-                });
-            });
-        });
-    </script>
 </body>
 </html>
