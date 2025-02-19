@@ -159,30 +159,77 @@ def process_image(image, filename_slug):
 
 
 # Обрезка и центрирование видео 1:1
-def convert_and_crop_video(video, output_filename):
-    """ Обрезка видео в формат 1:1 и конвертация в MP4 """
+def convert_video_without_resizing(video, filename_slug):
+    """Конвертирует видео в MP4 без изменения размера"""
     try:
         temp_input = tempfile.NamedTemporaryFile(delete=False, suffix=".mov")
-        temp_output = os.path.join(tempfile.gettempdir(), output_filename)
+        temp_output = os.path.join(tempfile.gettempdir(), f"{filename_slug}.mp4")
 
-        print(f"🔄 Сохраняем видео {video.filename} во временный файл {temp_input.name}")
+        print(f"🔄 Сохраняем оригинальное видео {video.filename} во временный файл {temp_input.name}")
         video.save(temp_input.name)
 
-        print("🔄 Начинаем конвертацию видео в 1:1...")
+        print("🔄 Начинаем конвертацию в MP4 без изменения размера...")
 
-        # Обрезаем в 1:1
-        ffmpeg.input(temp_input.name).filter(
-            "crop", "min(iw,ih)", "min(iw,ih)", "(iw-min(iw,ih))/2", "(ih-min(iw,ih))/2"
-        ).filter(
-            "scale", 720, 720
-        ).output(
-            temp_output, vcodec="libx264", acodec="aac", bitrate=BITRATE
+        # Конвертация без изменения разрешения
+        ffmpeg.input(temp_input.name).output(
+            temp_output, vcodec="libx264", acodec="aac", bitrate="2000k"
         ).run(overwrite_output=True)
 
         print(f"✅ Конвертация завершена: {temp_output}")
         return temp_output
     except Exception as e:
         print(f"❌ Ошибка конвертации видео: {e}")
+        return None
+
+
+def convert_and_crop_video(video, filename_slug):
+    """ Обрезка видео в формат 1:1 и конвертация в MP4 (720x720) """
+    try:
+        temp_input = tempfile.NamedTemporaryFile(delete=False, suffix=".mov")
+        temp_output = os.path.join(tempfile.gettempdir(), f"{filename_slug}_cropped.mp4")
+
+        print(f"🔄 Сохраняем видео {video.filename} во временный файл {temp_input.name}")
+        video.save(temp_input.name)
+
+        print("🔄 Начинаем обрезку видео в 1:1 (720x720)...")
+
+        # Обрезаем в 1:1 (центрируем)
+        ffmpeg.input(temp_input.name).filter(
+            "crop", "min(iw,ih)", "min(iw,ih)", "(iw-min(iw,ih))/2", "(ih-min(iw,ih))/2"
+        ).filter(
+            "scale", 720, 720
+        ).output(
+            temp_output, vcodec="libx264", acodec="aac", bitrate="2000k"
+        ).run(overwrite_output=True)
+
+        print(f"✅ Конвертация и обрезка завершены: {temp_output}")
+        return temp_output
+    except Exception as e:
+        print(f"❌ Ошибка конвертации видео: {e}")
+        return None
+
+
+def upload_video_to_ftp(video_path, filename_slug):
+    """ Загружает MP4 видео на FTP """
+    try:
+        print("📌 [DEBUG] Подключаемся к FTP серверу...")
+
+        ftp = FTP(FTP_HOST)
+        ftp.login(FTP_USER, FTP_PASS)
+
+        ftp.cwd("/wp-content/uploads/original_videos/")
+        print(f"📌 [DEBUG] Текущая директория FTP: {ftp.pwd()}")
+
+        with open(video_path, "rb") as file:
+            print(f"📌 [DEBUG] Загружаем файл {filename_slug}.mp4 ...")
+            ftp.storbinary(f"STOR {filename_slug}.mp4", file)
+
+        print(f"✅ Файл успешно загружен по FTP: /wp-content/uploads/original_videos/{filename_slug}.mp4")
+
+        ftp.quit()
+        return f"https://karal.az/wp-content/uploads/original_videos/{filename_slug}.mp4"
+    except Exception as e:
+        print(f"❌ Ошибка при загрузке файла по FTP: {e}")
         return None
 
 @app.route("/")
@@ -226,10 +273,12 @@ def add_product():
                 with open(processed_image, "rb") as img_file:
                     image_id = upload_media(img_file, filename=f"{product_slug}.jpg")
 
-        # 3️⃣ Сохраняем оригинал видео в `/original_videos/`
+        # 1️⃣ Конвертируем MOV в MP4 (без изменений) и загружаем на FTP
         original_video_url = None
         if video:
-            original_video_url = save_original_file(video, product_slug, "original_videos")
+        original_mp4 = convert_video_without_resizing(video, product_slug)
+        if original_mp4:
+        original_video_url = upload_video_to_ftp(original_mp4, product_slug)
 
         # 4️⃣ Конвертируем и загружаем видео в WordPress (720x720)
         video_id = None
@@ -288,11 +337,6 @@ def add_product():
         else:
             print("❌ [ERROR] Ошибка при добавлении товара")
             return jsonify({"status": "error", "message": "❌ Ошибка при добавлении товара"}), 400
-
-    except Exception as e:
-        print(f"❌ [ERROR] Исключение в add_product: {e}")
-        return jsonify({"status": "error", "message": str(e)}), 500
-
 
     except Exception as e:
         print(f"❌ [ERROR] Исключение в add_product: {e}")
