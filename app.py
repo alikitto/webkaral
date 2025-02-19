@@ -32,26 +32,22 @@ def save_original_file(file, filename_slug, folder):
 
         file_path = os.path.join(save_dir, f"{filename_slug}.jpg")
 
-        print(f"📌 [DEBUG] Проверяем путь: {save_dir}")
-        print(f"📌 [DEBUG] Права на папку: {oct(os.stat(save_dir).st_mode)}")
+        print(f"📌 [DEBUG] Попытка сохранить файл по пути: {file_path}")
 
         # Пробуем сохранить файл
-        try:
-            file.save(file_path)  
-        except Exception as file_error:
-            print(f"❌ [ERROR] Ошибка при сохранении файла: {file_error}")
-            return None
+        file.save(file_path)
 
-        # Проверяем, действительно ли файл записался
+        # Проверяем, записался ли файл
         if os.path.exists(file_path):
-            print(f"✅ Оригинальный файл сохранён: {file_path}")
+            print(f"✅ Файл сохранён успешно: {file_path}")
             return f"https://karal.az/wp-content/uploads/{folder}/{filename_slug}.jpg"
         else:
-            print(f"❌ Ошибка: файл НЕ СОХРАНЁН! Возможно, проблема с правами или форматом.")
+            print(f"❌ Ошибка: файл НЕ СОХРАНЁН!")
             return None
     except Exception as e:
-        print(f"❌ Ошибка сохранения оригинального файла: {e}")
+        print(f"❌ Ошибка сохранения файла: {e}")
         return None
+
 
 
 
