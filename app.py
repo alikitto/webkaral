@@ -4,7 +4,7 @@ import base64
 import tempfile
 import requests
 import boto3
-import ffmpeg 
+import ffmpeg
 from flask import Flask, render_template, request, jsonify
 from PIL import Image, ImageOps
 
@@ -39,6 +39,18 @@ s3_client = boto3.client(
 )
 
 BITRATE = "1700k"
+
+CATEGORY_DATA = {
+    "126": {"name": "Qızıl üzük", "slug": "qizil-uzuk"},
+    "132": {"name": "Qızıl sırğa", "slug": "qizil-sirqa"},
+    "140": {"name": "Qızıl sep", "slug": "qizil-sep"},
+    "138": {"name": "Qızıl qolbaq", "slug": "qizil-qolbaq"},
+    "144": {"name": ["Qızıl dəst", "Qızıl komplekt"], "slug": "qizil-komplekt-dest"}
+}
+
+@app.route("/")
+def home():
+    return render_template("index.html", categories=CATEGORY_DATA)
 
 async def upload_to_r2(file_path, key):
     """Uploads a file to Cloudflare R2"""
