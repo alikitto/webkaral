@@ -24,6 +24,26 @@ WP_MEDIA_URL = "https://karal.az/wp-json/wp/v2/media"
 auth = base64.b64encode(f"{WP_USERNAME}:{WP_PASSWORD}".encode()).decode()
 HEADERS = {"Authorization": f"Basic {auth}"}
 
+# Папка на сервере, где будем хранить оригиналы фото
+WP_PHOTOS_DIR = "/var/www/html/wp-content/uploads/original_photos"  # Путь на сервере
+WP_PHOTOS_URL = "https://karal.az/wp-content/uploads/original_photos"  # URL для скачивания
+
+def save_original_photo(image, filename_slug):
+    """Сохраняет оригинальное фото в отдельную папку на сервере"""
+    try:
+        if not os.path.exists(WP_PHOTOS_DIR):
+            os.makedirs(WP_PHOTOS_DIR)  # Создаём папку, если её нет
+
+        file_path = os.path.join(WP_PHOTOS_DIR, f"{filename_slug}.jpg")
+        image.save(file_path)  # Сохраняем оригинал
+
+        image_url = f"{WP_PHOTOS_URL}/{filename_slug}.jpg"
+        print(f"✅ Оригинальное фото сохранено: {image_url}")
+        return image_url  # Возвращаем ссылку на оригинал
+    except Exception as e:
+        print(f"❌ Ошибка сохранения оригинального фото: {e}")
+        return None
+
 # Настройки видео и фото
 RESOLUTION_VIDEO = (720, 720)  # 4:5 формат
 RESOLUTION_IMAGE = (1000, 1000)  # 4:5 формат
@@ -160,7 +180,12 @@ def add_product():
 
         print(f"📌 [INFO] Создаём товар: {product_name}, Slug: {product_slug}, Вес: {weight}, Цена: {price}")
 
-        # Загрузка изображения
+        # 1️⃣ Загружаем оригинал фото в папку
+        original_photo_url = None
+        if image:
+            original_photo_url = save_original_photo(image, product_slug)
+
+        # 2️⃣ Обрезаем и загружаем фото (1000x1000) в медиабиблиотеку WordPress
         image_id = None
         if image:
             processed_image = process_image(image, product_slug)
@@ -169,7 +194,7 @@ def add_product():
                 with open(processed_image, "rb") as img_file:
                     image_id = upload_media(img_file, filename=f"{product_slug}.jpg")
 
-        # Загрузка видео
+        # 3️⃣ Загрузка видео
         video_id = None
         if video:
             output_filename = f"{product_slug}.mp4"
@@ -182,7 +207,7 @@ def add_product():
         print(f"✅ [INFO] Загруженное изображение ID: {image_id}")
         print(f"✅ [INFO] Загруженное видео ID: {video_id}")
 
-        # ✅ Теперь точно добавляем пробу золота
+        # 4️⃣ Подготавливаем данные товара
         product_data = {
             "name": product_name,
             "slug": product_slug,
@@ -200,6 +225,11 @@ def add_product():
             ]
         }
 
+        # 5️⃣ Сохраняем ссылку на оригинал фото в мета-данные
+        if original_photo_url:
+            product_data["meta_data"].append({"key": "_original_photo_url", "value": original_photo_url})
+
+        # 6️⃣ Сохраняем ID видео, если оно есть
         if video_id:
             product_data["meta_data"].append({"key": "_product_video_gallery", "value": video_id})
 
