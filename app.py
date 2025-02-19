@@ -91,7 +91,9 @@ async def upload_media(file_path, filename):
     except Exception as e:
         print(f"❌ Media upload error: {e}")
         return None
-
+@app.route("/")
+def home():
+    return render_template("index.html", categories=CATEGORY_DATA)
 @app.route("/add-product", methods=["POST"])
 async def add_product():
     try:
