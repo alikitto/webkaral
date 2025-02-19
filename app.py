@@ -1,147 +1,154 @@
-from flask import Flask, render_template, request, jsonify
-import requests
 import os
-import io
+import asyncio
 import base64
-import random
 import tempfile
-import ffmpeg
+import requests
 import boto3
+import ffmpeg
+from flask import Flask, render_template, request, jsonify
 from PIL import Image, ImageOps
-from concurrent.futures import ThreadPoolExecutor
 
 app = Flask(__name__)
 
-# WooCommerce API
-WC_API_URL = os.getenv("WC_API_URL", "https://karal.az/wp-json/wc/v3")
+# Cloudflare R2 Config
+R2_ENDPOINT = os.getenv("R2_ENDPOINT")
+R2_ACCESS_KEY = os.getenv("R2_ACCESS_KEY_ID")
+R2_SECRET_KEY = os.getenv("R2_SECRET_ACCESS_KEY")
+R2_BUCKET = os.getenv("R2_BUCKET_NAME")
+
+# WooCommerce API Config
+WC_API_URL = os.getenv("WC_API_URL")
 WC_CONSUMER_KEY = os.getenv("WC_CONSUMER_KEY")
 WC_CONSUMER_SECRET = os.getenv("WC_CONSUMER_SECRET")
 
-# WordPress API
-WP_MEDIA_URL = "https://karal.az/wp-json/wp/v2/media"
+# WordPress API Config
 WP_USERNAME = os.getenv("WP_USERNAME")
 WP_PASSWORD = os.getenv("WP_PASSWORD")
+WP_MEDIA_URL = os.getenv("WP_MEDIA_URL")
+
+# Auth
 auth = base64.b64encode(f"{WP_USERNAME}:{WP_PASSWORD}".encode()).decode()
 HEADERS = {"Authorization": f"Basic {auth}"}
 
-# Cloudflare R2 Credentials
-R2_ACCOUNT_ID = os.getenv('R2_ACCOUNT_ID')
-R2_ACCESS_KEY_ID = os.getenv('R2_ACCESS_KEY_ID')
-R2_SECRET_ACCESS_KEY = os.getenv('R2_SECRET_ACCESS_KEY')
-R2_BUCKET_NAME = os.getenv('R2_BUCKET_NAME')
-
-# Настройки видео и фото
-RESOLUTION_VIDEO = (720, 720)  # 1:1 формат
-BITRATE = "1700k"
-
-CATEGORY_DATA = {
-    "126": {"name": "Qızıl üzük", "slug": "qizil-uzuk"},
-    "132": {"name": "Qızıl sırğa", "slug": "qizil-sirqa"},
-    "140": {"name": "Qızıl sep", "slug": "qizil-sep"},
-    "138": {"name": "Qızıl qolbaq", "slug": "qizil-qolbaq"},
-    "144": {"name": ["Qızıl dəst", "Qızıl komplekt"], "slug": "qizil-komplekt-dest"}
-}
-
-GOLD_PURITY_MAP = {
-    "105": "585 (14K)",
-    "106": "750 (18K)"
-}
-
-# Инициализация клиента для Cloudflare R2
-session = boto3.session.Session()
-r2_client = session.client(
-    's3',
-    endpoint_url=f'https://{R2_ACCOUNT_ID}.r2.cloudflarestorage.com',
-    aws_access_key_id=R2_ACCESS_KEY_ID,
-    aws_secret_access_key=R2_SECRET_ACCESS_KEY
+# S3 Client for Cloudflare R2
+s3_client = boto3.client(
+    "s3",
+    endpoint_url=R2_ENDPOINT,
+    aws_access_key_id=R2_ACCESS_KEY,
+    aws_secret_access_key=R2_SECRET_KEY
 )
 
-def upload_to_r2(file_path, bucket_folder, filename):
-    """Загружает файл в указанный бакет и папку на R2."""
+BITRATE = "1700k"
+
+async def upload_to_r2(file_path, key):
+    """Uploads a file to Cloudflare R2"""
     try:
-        with open(file_path, 'rb') as file_data:
-            r2_client.upload_fileobj(file_data, R2_BUCKET_NAME, f"{bucket_folder}/{filename}")
-        print(f"✅ Файл {filename} успешно загружен в R2 в папку {bucket_folder}.")
-        return f"https://video.karal.az/{bucket_folder}/{filename}"
+        with open(file_path, "rb") as file:
+            s3_client.upload_fileobj(file, R2_BUCKET, key, ExtraArgs={"ACL": "public-read"})
+        return f"https://video.karal.az/{key}"
     except Exception as e:
-        print(f"❌ Ошибка при загрузке файла в R2: {e}")
+        print(f"❌ Error uploading to R2: {e}")
         return None
 
-def process_image(image, filename_slug):
-    """Обрезка фото в 1000x1000 и сохранение во временный файл."""
+async def process_image(image, filename_slug):
+    """Resize image to 1000x1000 and upload to WordPress"""
     try:
         temp_output = os.path.join(tempfile.gettempdir(), f"{filename_slug}.jpg")
         img = Image.open(image)
         img = ImageOps.exif_transpose(img)
-        width, height = img.size
-        crop_size = min(width, height)
-        left = (width - crop_size) // 2
-        top = (height - crop_size) // 2
-        img = img.crop((left, top, left + crop_size, top + crop_size))
+        img = img.crop((0, 0, min(img.size), min(img.size)))
         img = img.resize((1000, 1000), Image.LANCZOS)
         img.save(temp_output, format="JPEG")
-        print(f"✅ Обработанное изображение сохранено: {temp_output}")
         return temp_output
     except Exception as e:
-        print(f"❌ Ошибка обработки фото: {e}")
+        print(f"❌ Image processing error: {e}")
         return None
 
-def convert_and_crop_video(video, filename_slug):
-    """Конвертирует и обрезает видео в формат 1:1 с разрешением 720x720."""
+async def process_video(video, filename_slug):
+    """Convert video to 720x720 resolution and save temporarily"""
     try:
-        temp_input = tempfile.NamedTemporaryFile(delete=False, suffix=".mov")
+        temp_input = tempfile.NamedTemporaryFile(delete=False, suffix=".mp4")
         temp_output = os.path.join(tempfile.gettempdir(), f"{filename_slug}.mp4")
         video.save(temp_input.name)
-        ffmpeg.input(temp_input.name).filter(
-            'crop', 'min(iw,ih)', 'min(iw,ih)', '(iw-min(iw,ih))/2', '(ih-min(iw,ih))/2'
-        ).filter(
-            'scale', RESOLUTION_VIDEO[0], RESOLUTION_VIDEO[1]
-        ).output(
-            temp_output, vcodec='libx264', acodec='aac', bitrate=BITRATE
+        
+        ffmpeg.input(temp_input.name).filter("scale", 720, 720).output(
+            temp_output, vcodec="libx264", acodec="aac", bitrate=BITRATE
         ).run(overwrite_output=True)
-        print(f"✅ Видео конвертировано и обрезано: {temp_output}")
+        
         return temp_output
     except Exception as e:
-        print(f"❌ Ошибка конвертации видео: {e}")
+        print(f"❌ Video processing error: {e}")
         return None
 
-def upload_media_to_wp(file_path, filename):
-    """Загружает файл в медиабиблиотеку WordPress и возвращает ID медиа."""
+async def upload_media(file_path, filename):
+    """Uploads processed image to WordPress"""
     try:
-        with open(file_path, 'rb') as file_data:
-            mime_type = 'video/mp4' if filename.endswith('.mp4') else 'image/jpeg'
-            files = {'file': (filename, file_data, mime_type)}
-            response = requests.post(WP_MEDIA_URL, headers=HEADERS, files=files)
+        with open(file_path, "rb") as file:
+            response = requests.post(WP_MEDIA_URL, headers=HEADERS, files={"file": (filename, file, "image/jpeg")})
             if response.status_code == 201:
-                media_id = response.json().get('id')
-                print(f"✅ Файл загружен в WordPress! ID: {media_id}")
-                return media_id
-            else:
-                print(f"❌ Ошибка загрузки в WordPress: {response.text}")
-                return None
-    except Exception as e:
-        print(f"❌ Ошибка при загрузке файла в WordPress: {e}")
+                return response.json().get("id")
         return None
-
-@app.route("/")
-def home():
-    return render_template("index.html", categories=CATEGORY_DATA)
+    except Exception as e:
+        print(f"❌ Media upload error: {e}")
+        return None
 
 @app.route("/add-product", methods=["POST"])
-def add_product():
+async def add_product():
     try:
-        print("📌 [INFO] Получен запрос на добавление товара")
-
-        category_id = request.form.get("category")
-        weight = request.form.get("weight")
-        gold_purity_id = request.form.get("gold_purity")
-        price = request.form.get("price")
-        sale_price = request.form.get("sale_price", "0")
+        data = request.form
+        category_id = data.get("category")
+        price = data.get("price")
+        sale_price = data.get("sale_price", "0")
+        weight = data.get("weight")
         image = request.files.get("image")
         video = request.files.get("video")
+        product_slug = f"product-{category_id}-{os.urandom(4).hex()}"
+        
+        # Upload original media to R2
+        original_photo_url, original_video_url, video_url = None, None, None
+        
+        if image:
+            photo_key = f"original_photos/{product_slug}.jpg"
+            original_photo_url = await upload_to_r2(image, photo_key)
+            processed_image = await process_image(image, product_slug)
+            image_id = await upload_media(processed_image, f"{product_slug}.jpg")
+        
+        if video:
+            video_key = f"original_videos/{product_slug}.mp4"
+            original_video_url = await upload_to_r2(video, video_key)
+            processed_video = await process_video(video, product_slug)
+            video_r2_key = f"product_videos/{product_slug}.mp4"
+            video_url = await upload_to_r2(processed_video, video_r2_key)
+        
+        # Create product in WooCommerce
+        product_data = {
+            "name": f"Product {category_id}",
+            "slug": product_slug,
+            "regular_price": price,
+            "sale_price": sale_price if sale_price != "0" else None,
+            "categories": [{"id": int(category_id)}],
+            "images": [{"id": image_id}] if image_id else [],
+            "meta_data": [
+                {"key": "_weight", "value": weight},
+                {"key": "_original_photo_url", "value": original_photo_url},
+                {"key": "_original_video_url", "value": original_video_url},
+                {"key": "_product_video_gallery", "value": video_url}
+            ]
+        }
+        
+        response = requests.post(
+            WC_API_URL + "/products",
+            json=product_data,
+            params={"consumer_key": WC_CONSUMER_KEY, "consumer_secret": WC_CONSUMER_SECRET}
+        )
+        
+        if response.status_code == 201:
+            return jsonify({"status": "success", "message": "Product added!"})
+        else:
+            return jsonify({"status": "error", "message": "Error adding product"}), 400
 
-        if not category_id or not weight or not price:
-            print("❌ [ERROR] Не заполнены обязательные поля")
-            return jsonify({"status": "error", "message": "❌ Обязательные поля
-::contentReference[oaicite:0]{index=0}
- 
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+if __name__ == "__main__":
+    app.run(debug=True)
