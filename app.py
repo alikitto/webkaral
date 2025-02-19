@@ -35,21 +35,32 @@ FTP_DIR = "/wp-content/uploads/original_photos/"  # Путь на сервере
 def upload_file_via_ftp(file, filename_slug):
     """ Загружает оригинальный файл на FTP сервер """
     try:
+        print("📌 [DEBUG] Подключаемся к FTP серверу...")
+
         ftp = FTP(FTP_HOST)
+        ftp.set_debuglevel(2)  # Включаем отладку FTP
         ftp.login(FTP_USER, FTP_PASS)
+
+        print("✅ Успешно подключились к FTP!")
+
         ftp.cwd(FTP_DIR)  # Переходим в нужную папку
+        print(f"📌 [DEBUG] Текущая директория FTP: {ftp.pwd()}")
 
         # Читаем файл в байтовый поток
         file_data = io.BytesIO(file.read())
 
+        print(f"📌 [DEBUG] Загружаем файл {filename_slug}.jpg ...")
+
         ftp.storbinary(f"STOR {filename_slug}.jpg", file_data)
 
-        ftp.quit()
         print(f"✅ Файл успешно загружен по FTP: {FTP_DIR}{filename_slug}.jpg")
+
+        ftp.quit()
         return f"https://karal.az{FTP_DIR}{filename_slug}.jpg"
     except Exception as e:
         print(f"❌ Ошибка при загрузке файла по FTP: {e}")
         return None
+
         
 def save_original_file(file, filename_slug, folder):
     """Сохраняет оригинальный файл на сервере через FTP"""
