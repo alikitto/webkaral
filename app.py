@@ -25,7 +25,7 @@ auth = base64.b64encode(f"{WP_USERNAME}:{WP_PASSWORD}".encode()).decode()
 HEADERS = {"Authorization": f"Basic {auth}"}
 
 # Новый правильный путь!
-WP_UPLOADS_DIR = "/var/www/karal.az/wp-content/uploads/original_photos"
+WP_UPLOADS_DIR = "/www/karal.az/wp-content/uploads/original_photos"
 WP_UPLOADS_URL = "https://karal.az/wp-content/uploads/original_photos"
 
 def save_original_file(file, filename_slug, folder):
@@ -55,7 +55,7 @@ def save_original_file(file, filename_slug, folder):
 
 
 # Папка на сервере, где будем хранить оригиналы фото
-WP_PHOTOS_DIR = "/var/www/karal.az/wp-content/uploads/original_photos"  # Путь на сервере
+WP_PHOTOS_DIR = "/www/karal.az/wp-content/uploads/original_photos"  # Путь на сервере
 WP_PHOTOS_URL = "https://karal.az/wp-content/uploads/original_photos"  # URL для скачивания
 
 # Настройки видео и фото
