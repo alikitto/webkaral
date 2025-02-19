@@ -25,7 +25,7 @@ WP_MEDIA_URL = "https://karal.az/wp-json/wp/v2/media"
 auth = base64.b64encode(f"{WP_USERNAME}:{WP_PASSWORD}".encode()).decode()
 HEADERS = {"Authorization": f"Basic {auth}"}
 
-# Настройки фото и видео (изменено)
+# Настройки фото и видео
 RESOLUTION_IMAGE = (1000, 1000)  # Теперь 1000x1000
 RESOLUTION_VIDEO = (720, 720)  # Теперь 720x720
 BITRATE = "2000k"  # Теперь 2000k
@@ -151,7 +151,7 @@ def add_product():
 
         print(f"📌 [INFO] Создаём товар: {product_name}, Slug: {product_slug}, Вес: {weight}, Цена: {price}")
 
-        # Загрузка изображения
+        # Загружаем фото
         image_id = None
         if image:
             processed_image = process_image(image, product_slug)
@@ -159,7 +159,7 @@ def add_product():
                 with open(processed_image, "rb") as img_file:
                     image_id = upload_media(img_file, filename=f"{product_slug}.jpg")
 
-        # Загрузка видео
+        # Загружаем видео
         video_id = None
         if video:
             output_filename = f"{product_slug}.mp4"
