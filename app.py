@@ -69,9 +69,9 @@ def save_original_file(file, filename_slug, folder):
 
 
 # Настройки видео и фото
-RESOLUTION_VIDEO = (720, 720)  # 1:1 формат
+RESOLUTION_VIDEO = (600, 600)  # 1:1 формат
 RESOLUTION_IMAGE = (1000, 1000)  # 1:1 формат
-BITRATE = "2000k"
+BITRATE = "1500k"
 
 CATEGORY_DATA = {
     "126": {"name": "Qızıl üzük", "slug": "qizil-uzuk"},
@@ -174,7 +174,7 @@ def convert_and_crop_video(video, output_filename):
         ffmpeg.input(temp_input.name).filter(
             "crop", "min(iw,ih)", "min(iw,ih)", "(iw-min(iw,ih))/2", "(ih-min(iw,ih))/2"
         ).filter(
-            "scale", 720, 720
+            "scale", 600, 600
         ).output(
             temp_output, vcodec="libx264", acodec="aac", bitrate=BITRATE
         ).run(overwrite_output=True)
@@ -231,14 +231,27 @@ def add_product():
         if video:
             original_video_url = save_original_file(video, product_slug, "original_videos")
 
-        # 4️⃣ Конвертируем и загружаем видео в WordPress (720x720)
+        # 4️⃣ Конвертируем и загружаем видео в WordPress (600x600)
         video_id = None
         if video:
             output_filename = f"{product_slug}.mp4"
+            print(f"📌 [INFO] Начинаем конвертацию видео в {output_filename}")
+
             converted_video_path = convert_and_crop_video(video, output_filename)
+
             if converted_video_path:
+                print(f"✅ [INFO] Конвертация завершена: {converted_video_path}")
+
                 with open(converted_video_path, "rb") as converted_video:
+                    print(f"📌 [INFO] Загружаем видео в WordPress: {output_filename}")
                     video_id = upload_media(converted_video, filename=output_filename)
+
+                    if video_id:
+                        print(f"✅ [INFO] Видео загружено в WordPress! ID: {video_id}")
+                    else:
+                        print(f"❌ [ERROR] Видео НЕ загружено в WordPress!")
+            else:
+                print(f"❌ [ERROR] Ошибка в `convert_and_crop_video`. Файл не был создан.")
 
         print(f"✅ [INFO] Оригинальное фото: {original_photo_url}")
         print(f"✅ [INFO] Загруженное изображение ID: {image_id}")
@@ -272,6 +285,8 @@ def add_product():
         # Добавляем видео в WooCommerce
         if video_id:
             product_data["meta_data"].append({"key": "_product_video_gallery", "value": video_id})
+        else:
+            print(f"❌ [ERROR] `video_id` пустой. Видео не добавлено в товар!")
 
         print("📌 [INFO] Отправляем запрос на создание товара...")
         response = requests.post(
@@ -292,6 +307,7 @@ def add_product():
     except Exception as e:
         print(f"❌ [ERROR] Исключение в add_product: {e}")
         return jsonify({"status": "error", "message": str(e)}), 500
+
 
 
     except Exception as e:
