@@ -36,36 +36,37 @@ def save_original_file(file, filename_slug, folder):
 
         # Пробуем сохранить файл
         file.save(file_path)
+        print(f"📌 [DEBUG] Файл записан на диск, проверяем наличие...")
 
-if os.path.exists(file_path):
-    print(f"✅ Файл реально сохранён: {file_path}")
-    print(f"📌 [DEBUG] Проверяем реальное местоположение файла...")
-    
-    # Проверяем абсолютный путь
-    real_path = os.path.realpath(file_path)
-    print(f"📌 [DEBUG] Файл сохранён по реальному пути: {real_path}")
-    
-    return f"https://karal.az/wp-content/uploads/{folder}/{filename_slug}.jpg"
-else:
-    print(f"❌ [CRITICAL] Файл НЕ СОХРАНЁН! Код врёт! Проверяем альтернативные пути...")
+        if os.path.exists(file_path):
+            print(f"✅ Файл реально сохранён: {file_path}")
+            print(f"📌 [DEBUG] Проверяем реальное местоположение файла...")
 
-    # Проверяем, нет ли файла в другом месте
-    alternative_dirs = [
-        "/var/www/html/wp-content/uploads/",
-        "/var/www/html/wp-content/",
-        "/var/www/html/"
-    ]
-    for alt_dir in alternative_dirs:
-        alt_path = os.path.join(alt_dir, f"{filename_slug}.jpg")
-        if os.path.exists(alt_path):
-            print(f"⚠️ Файл почему-то сохранился по пути: {alt_path}")
+            # Проверяем абсолютный путь
+            real_path = os.path.realpath(file_path)
+            print(f"📌 [DEBUG] Файл сохранён по реальному пути: {real_path}")
+
             return f"https://karal.az/wp-content/uploads/{folder}/{filename_slug}.jpg"
+        else:
+            print(f"❌ [CRITICAL] Файл НЕ СОХРАНЁН! Код врёт! Проверяем альтернативные пути...")
 
-    print(f"🚨 Файл вообще нигде не найден!")
-    return None
+            # Проверяем, нет ли файла в другом месте
+            alternative_dirs = [
+                "/var/www/html/wp-content/uploads/",
+                "/var/www/html/wp-content/",
+                "/var/www/html/"
+            ]
+            for alt_dir in alternative_dirs:
+                alt_path = os.path.join(alt_dir, f"{filename_slug}.jpg")
+                if os.path.exists(alt_path):
+                    print(f"⚠️ Файл почему-то сохранился по пути: {alt_path}")
+                    return f"https://karal.az/wp-content/uploads/{folder}/{filename_slug}.jpg"
 
-
-
+            print(f"🚨 Файл вообще нигде не найден!")
+            return None
+    except Exception as e:
+        print(f"❌ Ошибка сохранения файла: {e}")
+        return None
 
 
 
