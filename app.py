@@ -33,8 +33,8 @@ FTP_USER = "pypy777"
 FTP_PASS = "jN2wR7rD2f"
 FTP_DIR = "/wp-content/uploads/original_photos/"  # Путь на сервере
 
-def upload_file_via_ftp(file, filename_slug):
-    """ Загружает оригинальный файл на FTP сервер """
+def upload_file_via_ftp(file, filename_slug, file_type):
+    """ Загружает оригинальный файл (фото/видео) на FTP сервер """
     try:
         print("📌 [DEBUG] Подключаемся к FTP серверу...")
 
@@ -42,30 +42,39 @@ def upload_file_via_ftp(file, filename_slug):
         ftp.set_debuglevel(2)  # Включаем отладку FTP
         ftp.login(FTP_USER, FTP_PASS)
 
-        print("✅ Успешно подключились к FTP!")
+        # Определяем папку в зависимости от типа файла
+        if file_type == "image":
+            target_dir = "/wp-content/uploads/original_photos/"
+            file_ext = ".jpg"
+        elif file_type == "video":
+            target_dir = "/wp-content/uploads/original_videos/"
+            file_ext = ".mp4"
+        else:
+            print("❌ Ошибка: Неподдерживаемый тип файла")
+            return None
 
-        ftp.cwd(FTP_DIR)  # Переходим в нужную папку
+        ftp.cwd(target_dir)  # Переходим в нужную папку
         print(f"📌 [DEBUG] Текущая директория FTP: {ftp.pwd()}")
 
         # Читаем файл в байтовый поток
         file_data = io.BytesIO(file.read())
 
-        print(f"📌 [DEBUG] Загружаем файл {filename_slug}.jpg ...")
+        print(f"📌 [DEBUG] Загружаем файл {filename_slug}{file_ext} ...")
 
-        ftp.storbinary(f"STOR {filename_slug}.jpg", file_data)
+        ftp.storbinary(f"STOR {filename_slug}{file_ext}", file_data)
 
-        print(f"✅ Файл успешно загружен по FTP: {FTP_DIR}{filename_slug}.jpg")
+        print(f"✅ Файл успешно загружен по FTP: {target_dir}{filename_slug}{file_ext}")
 
         ftp.quit()
-        return f"https://karal.az{FTP_DIR}{filename_slug}.jpg"
+        return f"https://karal.az{target_dir}{filename_slug}{file_ext}"
     except Exception as e:
         print(f"❌ Ошибка при загрузке файла по FTP: {e}")
         return None
 
         
-def save_original_file(file, filename_slug, folder):
-    """Сохраняет оригинальный файл на сервере через FTP"""
-    return upload_file_via_ftp(file, filename_slug)
+def save_original_file(file, filename_slug, file_type):
+    """Сохраняет оригинальный файл (фото/видео) на сервере через FTP"""
+    return upload_file_via_ftp(file, filename_slug, file_type)
 
 
 # Настройки видео и фото
