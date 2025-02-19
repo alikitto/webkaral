@@ -42,16 +42,21 @@ def upload_file_via_ftp(file, filename_slug, file_type):
         ftp.set_debuglevel(2)  # Включаем отладку FTP
         ftp.login(FTP_USER, FTP_PASS)
 
-        # Определяем папку в зависимости от типа файла
+        # Проверяем корректный тип файла
+        if file_type not in ["image", "video"]:
+            print(f"❌ Ошибка: Неподдерживаемый тип файла ({file_type})")
+            return None
+
+        # Определяем папку и расширение файла в зависимости от типа
         if file_type == "image":
             target_dir = "/wp-content/uploads/original_photos/"
             file_ext = ".jpg"
         elif file_type == "video":
             target_dir = "/wp-content/uploads/original_videos/"
-            file_ext = ".mp4"
-        else:
-            print("❌ Ошибка: Неподдерживаемый тип файла")
-            return None
+            file_ext = os.path.splitext(file.filename)[-1].lower()  # Оригинальное расширение (MOV или MP4)
+            if file_ext not in [".mp4", ".mov"]:
+                print(f"❌ Ошибка: Неподдерживаемый формат видео ({file_ext})")
+                return None
 
         ftp.cwd(target_dir)  # Переходим в нужную папку
         print(f"📌 [DEBUG] Текущая директория FTP: {ftp.pwd()}")
@@ -70,6 +75,15 @@ def upload_file_via_ftp(file, filename_slug, file_type):
     except Exception as e:
         print(f"❌ Ошибка при загрузке файла по FTP: {e}")
         return None
+
+
+def save_original_file(file, filename_slug, file_type):
+    """Сохраняет оригинальный файл (фото/видео) на сервере через FTP"""
+    if file_type not in ["image", "video"]:
+        print(f"❌ Ошибка: Неподдерживаемый тип файла ({file_type})")
+        return None
+    return upload_file_via_ftp(file, filename_slug, file_type)
+
 
         
 def save_original_file(file, filename_slug, file_type):
@@ -225,7 +239,7 @@ def add_product():
         # 1️⃣ Сохраняем оригинал фото в `/original_photos/`
         original_photo_url = None
         if image:
-            original_photo_url = save_original_file(image, product_slug, "original_photos")
+            original_photo_url = save_original_file(image, product_slug, "image")
 
         # 2️⃣ Обрабатываем фото и загружаем в WordPress (1000x1000)
         image_id = None
@@ -238,7 +252,7 @@ def add_product():
         # 3️⃣ Сохраняем оригинал видео в `/original_videos/`
         original_video_url = None
         if video:
-            original_video_url = save_original_file(video, product_slug, "original_videos")
+            original_video_url = save_original_file(video, product_slug, "video")
 
         # 4️⃣ Конвертируем и загружаем видео в WordPress (720x720)
         video_id = None
