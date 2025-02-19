@@ -29,11 +29,16 @@ REAL_WP_ROOT = os.getcwd()  # Узнаем, где реально выполня
 WP_UPLOADS_DIR = os.path.join(REAL_WP_ROOT, "wp-content/uploads/original_photos")
 WP_UPLOADS_URL = "https://karal.az/wp-content/uploads/original_photos"
 
+import os
+
+# ПРАВИЛЬНЫЙ ПУТЬ К WordPress Uploads
+WP_UPLOADS_DIR = "/var/www/karal.az/wp-content/uploads/original_photos"
+WP_UPLOADS_URL = "https://karal.az/wp-content/uploads/original_photos"
+
 def save_original_file(file, filename_slug, folder):
     """Сохраняет оригинальный файл (фото/видео) на сервере"""
     try:
-        print(f"📌 [DEBUG] Рабочая директория: {REAL_WP_ROOT}")
-        print(f"📌 [DEBUG] Окончательный путь сохранения: {WP_UPLOADS_DIR}")
+        print(f"📌 [DEBUG] Жёстко заданный путь: {WP_UPLOADS_DIR}")
 
         # Создаём папку, если её нет
         os.makedirs(WP_UPLOADS_DIR, exist_ok=True)
@@ -52,6 +57,7 @@ def save_original_file(file, filename_slug, folder):
     except Exception as e:
         print(f"❌ Ошибка сохранения файла: {e}")
         return None
+
 
 
 
