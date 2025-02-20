@@ -75,7 +75,8 @@ def upload_to_wordpress(file_data, filename):
         file_data.seek(0)  # Сбрасываем указатель потока
     """Uploads processed image to WordPress"""
     try:
-        files = {"file": (filename, file_data.getvalue(), "image/jpeg")}
+        file_data.seek(0)
+        files = {"file": (filename, file_data.read(), "image/jpeg") }
         response = requests.post(WP_MEDIA_URL, headers=HEADERS, files=files)
         if response.status_code == 201:
             return response.json().get("id")
