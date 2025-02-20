@@ -1,6 +1,5 @@
 import os
 import base64
-import tempfile
 import requests
 import boto3
 import ffmpeg
@@ -71,6 +70,18 @@ def process_image(image):
     img_bytes.seek(0)
     return img_bytes
 
+def upload_to_wordpress(file_data, filename):
+    """Uploads processed image to WordPress"""
+    try:
+        files = {"file": (filename, file_data, "image/jpeg")}
+        response = requests.post(WP_MEDIA_URL, headers=HEADERS, files=files)
+        if response.status_code == 201:
+            return response.json().get("id")
+        return None
+    except Exception as e:
+        print(f"❌ Error uploading to WordPress: {e}")
+        return None
+
 @app.route("/add-product", methods=["POST"])
 def add_product():
     try:
@@ -84,12 +95,13 @@ def add_product():
         product_slug = f"product-{category_id}-{os.urandom(4).hex()}"
         
         original_photo_url, original_video_url, video_url = None, None, None
-        
+        image_id = None
+
         if image:
             photo_key = f"original_photos/{product_slug}.jpg"
             original_photo_url = upload_to_r2(image.stream, photo_key)
             processed_image = process_image(image)
-            image_id = upload_to_r2(processed_image, f"processed_photos/{product_slug}.jpg")
+            image_id = upload_to_wordpress(processed_image, f"{product_slug}.jpg")
         
         if video:
             video_key = f"original_videos/{product_slug}.mp4"
@@ -103,7 +115,7 @@ def add_product():
             "regular_price": price,
             "sale_price": sale_price if sale_price != "0" else None,
             "categories": [{"id": int(category_id)}],
-            "images": [{"src": image_id}] if image_id else [],
+            "images": [{"id": image_id}] if image_id else [],
             "meta_data": [
                 {"key": "_weight", "value": weight},
                 {"key": "_original_photo_url", "value": original_photo_url},
@@ -118,12 +130,15 @@ def add_product():
             params={"consumer_key": WC_CONSUMER_KEY, "consumer_secret": WC_CONSUMER_SECRET}
         )
         
+        print("📌 [INFO] WooCommerce Response:", response.status_code, response.text)
+        
         if response.status_code == 201:
             return jsonify({"status": "success", "message": "Product added!"})
         else:
-            return jsonify({"status": "error", "message": "Error adding product"}), 400
+            return jsonify({"status": "error", "message": f"Error adding product: {response.text}"}), 400
 
     except Exception as e:
+        print(f"❌ [ERROR] Ошибка добавления товара: {e}")
         return jsonify({"status": "error", "message": str(e)}), 500
 
 if __name__ == "__main__":
