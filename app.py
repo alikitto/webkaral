@@ -104,7 +104,8 @@ def add_product():
             photo_key = f"original_photos/{product_slug}.jpg"
             original_photo_url = upload_to_r2(image.stream, photo_key)
             processed_image = process_image(image)
-            image_id = upload_to_wordpress(processed_image, f"{product_slug}.jpg")
+            processed_image_copy = io.BytesIO(processed_image.getvalue())  # Создаём копию потока
+            image_id = upload_to_wordpress(processed_image_copy, f"{product_slug}.jpg")
         
         if video:
             video_key = f"original_videos/{product_slug}.mp4"
