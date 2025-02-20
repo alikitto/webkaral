@@ -72,11 +72,12 @@ def process_image(image):
 
 def upload_to_wordpress(file_data, filename):
     if isinstance(file_data, io.BytesIO):
-        file_data.seek(0)  # Сбрасываем указатель потока
+        file_data.seek(0)
+        file_bytes = file_data.getvalue()  # Сбрасываем указатель потока
     """Uploads processed image to WordPress"""
     try:
         file_data.seek(0)
-        files = {"file": (filename, file_data.read(), "image/jpeg") }
+        files = {"file": (filename, file_bytes, "image/jpeg") }
         response = requests.post(WP_MEDIA_URL, headers=HEADERS, files=files)
         if response.status_code == 201:
             return response.json().get("id")
