@@ -78,6 +78,23 @@ executor = concurrent.futures.ThreadPoolExecutor()
 def process_video(video):
     """Convert and crop video to 720x720 resolution before uploading"""
     try:
+        temp_input = tempfile.NamedTemporaryFile(delete=False, suffix='.mp4')
+        temp_input.write(video.read())
+        temp_input.close()
+        temp_output = tempfile.NamedTemporaryFile(delete=False, suffix='.mp4')
+        (
+            ffmpeg.input(temp_input.name)
+            .filter("scale", 720, 720)
+            .output(temp_output.name, vcodec="libx264", acodec="aac", bitrate=BITRATE, format="mp4")
+            .run(overwrite_output=True)
+        )
+        temp_output.seek(0)
+        return open(temp_output.name, 'rb')
+    except Exception as e:
+        print(f"❌ Error processing video: {e}")
+        return None
+    """Convert and crop video to 720x720 resolution before uploading"""
+    try:
         temp_input = io.BytesIO()
         temp_input.write(video.read())
         temp_input.seek(0)
