@@ -71,13 +71,10 @@ def process_image(image):
     return img_bytes
 
 def upload_to_wordpress(file_data, filename):
-    if isinstance(file_data, io.BytesIO):
-        file_data.seek(0)
-        file_bytes = file_data.getvalue()  # Сбрасываем указатель потока
     """Uploads processed image to WordPress"""
     try:
         file_data.seek(0)
-        files = {"file": (filename, file_bytes, "image/jpeg") }
+        files = {"file": (filename, file_data.getvalue(), "image/jpeg")}
         response = requests.post(WP_MEDIA_URL, headers=HEADERS, files=files)
         if response.status_code == 201:
             return response.json().get("id")
@@ -94,40 +91,35 @@ def add_product():
         price = data.get("price")
         sale_price = data.get("sale_price", "0")
         weight = data.get("weight")
+        sku = data.get("sku")  # Получаем артикул товара
         image = request.files.get("image")
         video = request.files.get("video")
         product_slug = f"product-{category_id}-{os.urandom(4).hex()}"
         
-        original_photo_url, original_video_url, video_url = None, None, None
         image_id = None
+        video_url = None
 
         if image:
-            photo_key = f"original_photos/{product_slug}.jpg"
-            original_photo_url = upload_to_r2(image.stream, photo_key)
             processed_image = process_image(image)
-            processed_image_copy = io.BytesIO()
-            processed_image.seek(0)
-            processed_image_copy.write(processed_image.read())
-            processed_image_copy.seek(0)  # Создаём копию потока
-            image_id = upload_to_wordpress(processed_image_copy, f"{product_slug}.jpg")
+            image_id = upload_to_wordpress(processed_image, f"{product_slug}.jpg")
         
         if video:
-            video_key = f"original_videos/{product_slug}.mp4"
-            original_video_url = upload_to_r2(video.stream, video_key)
+            processed_video = process_video(video)
+            video_r2_key = f"product_videos/{product_slug}.mp4"
+            video_url = upload_to_r2(processed_video, video_r2_key)
             video_r2_key = f"product_videos/{product_slug}.mp4"
             video_url = upload_to_r2(video.stream, video_r2_key)
         
         product_data = {
             "name": f"Product {category_id}",
             "slug": product_slug,
+            "sku": sku,
             "regular_price": price,
             "sale_price": sale_price if sale_price != "0" else None,
             "categories": [{"id": int(category_id)}],
             "images": [{"id": image_id}] if image_id else [],
             "meta_data": [
                 {"key": "_weight", "value": weight},
-                {"key": "_original_photo_url", "value": original_photo_url},
-                {"key": "_original_video_url", "value": original_video_url},
                 {"key": "_product_video_gallery", "value": video_url}
             ]
         }
