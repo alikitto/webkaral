@@ -70,6 +70,24 @@ def process_image(image):
     img_bytes.seek(0)
     return img_bytes
 
+def process_video(video):
+    """Convert and crop video to 720x720 resolution before uploading"""
+    try:
+        temp_input = io.BytesIO(video.read())
+        temp_output = io.BytesIO()
+        temp_input.seek(0)
+        (
+            ffmpeg.input(temp_input)
+            .filter("scale", 720, 720)
+            .output(temp_output, vcodec="libx264", acodec="aac", bitrate=BITRATE, format="mp4")
+            .run(overwrite_output=True)
+        )
+        temp_output.seek(0)
+        return temp_output
+    except Exception as e:
+        print(f"❌ Error processing video: {e}")
+        return None
+
 def upload_to_wordpress(file_data, filename):
     """Uploads processed image to WordPress"""
     try:
