@@ -70,18 +70,29 @@ def process_image(image):
     img_bytes.seek(0)
     return img_bytes
 
+import tempfile
+import concurrent.futures
+
+executor = concurrent.futures.ThreadPoolExecutor()
+
 def process_video(video):
     """Convert and crop video to 720x720 resolution before uploading"""
     try:
-        temp_input = io.BytesIO(video.read())
+        temp_input = io.BytesIO()
+        temp_input.write(video.read())
+        temp_input.seek(0)
+        temp_input.write(video.read())
+        temp_input.close()  # Закрываем, чтобы ffmpeg мог использовать файл
         temp_output = io.BytesIO()
         temp_input.seek(0)
         (
-            ffmpeg.input(temp_input)
+            ffmpeg.input(temp_input.name)
             .filter("scale", 720, 720)
             .output(temp_output, vcodec="libx264", acodec="aac", bitrate=BITRATE, format="mp4")
             .run(overwrite_output=True)
         )
+        temp_output.seek(0)
+        temp_output.seek(0)
         temp_output.seek(0)
         return temp_output
     except Exception as e:
@@ -122,11 +133,11 @@ def add_product():
             image_id = upload_to_wordpress(processed_image, f"{product_slug}.jpg")
         
         if video:
-            processed_video = process_video(video)
+            processed_video = executor.submit(process_video, video).result()
             video_r2_key = f"product_videos/{product_slug}.mp4"
             video_url = upload_to_r2(processed_video, video_r2_key)
             video_r2_key = f"product_videos/{product_slug}.mp4"
-            video_url = upload_to_r2(video.stream, video_r2_key)
+            
         
         product_data = {
             "name": f"Product {category_id}",
