@@ -37,7 +37,7 @@ s3_client = boto3.client(
     aws_secret_access_key=R2_SECRET_KEY
 )
 
-BITRATE = "2000k"
+BITRATE = "1700k"
 
 CATEGORY_DATA = {
     "126": {"name": "Qızıl üzük", "slug": "qizil-uzuk"},
@@ -76,6 +76,24 @@ import concurrent.futures
 executor = concurrent.futures.ThreadPoolExecutor()
 
 def process_video(video):
+    """Convert and crop video to 720x720 resolution with better quality"""
+    try:
+        temp_input = tempfile.NamedTemporaryFile(delete=False, suffix='.mp4')
+        temp_input.write(video.read())
+        temp_input.close()
+        temp_output = tempfile.NamedTemporaryFile(delete=False, suffix='.mp4')
+        (
+            ffmpeg.input(temp_input.name)
+            .filter('crop', 'min(iw,ih)', 'min(iw,ih)', '(iw-min(iw,ih))/2', '(ih-min(iw,ih))/2')
+            .filter("scale", 720, 720)
+            .output(temp_output.name, vcodec="libx264", acodec="aac", crf=23, bitrate=BITRATE, preset="slow", format="mp4")
+            .run(overwrite_output=True)
+        )
+        temp_output.seek(0)
+        return open(temp_output.name, 'rb')
+    except Exception as e:
+        print(f"❌ Error processing video: {e}")
+        return None
     """Convert and crop video to 720x720 resolution before uploading"""
     try:
         temp_input = tempfile.NamedTemporaryFile(delete=False, suffix='.mp4')
