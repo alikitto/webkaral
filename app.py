@@ -173,14 +173,12 @@ def add_product():
             video_url = upload_to_r2(processed_video, video_r2_key)
             if video_url:
                 product_data["meta_data"].append({"key": "_product_video_gallery", "value": video_url})
+                product_data["meta_data"].append({"key": "_product_video_gallery", "value": video_url})
             
             # Добавляем ссылку на видео в WooCommerce
-            if video_url:
-                
-            processed_video = executor.submit(process_video, video).result()
+            
             video_r2_key = f"product_videos/{product_slug}.mp4"
             video_url = upload_to_r2(processed_video, video_r2_key)
-            video_r2_key = f"product_videos/{product_slug}.mp4"
             
         
         product_data = {
