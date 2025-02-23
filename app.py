@@ -207,7 +207,7 @@ def add_product():
         
         # Добавляем ссылку на видео в meta_data, если оно есть
         if video_url:
-            product_data["meta_data"].append({"key": "_product_video_gallery", "value": video_url})",
+            product_data["meta_data"].append({"key": "_product_video_gallery", "value": video_url}),
             "slug": product_slug,
             "sku": sku,
             "regular_price": price,
