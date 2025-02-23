@@ -171,6 +171,8 @@ def add_product():
             processed_video = process_video(video)
             video_r2_key = f"product_videos/{product_slug}.mp4"
             video_url = upload_to_r2(processed_video, video_r2_key)
+            video_r2_key = f"product_videos/{product_slug}.mp4"
+            video_url = upload_to_r2(processed_video, video_r2_key)
             if video_url:
                 product_data["meta_data"].append({"key": "_product_video_gallery", "value": video_url})
             processed_video = process_video(video)
@@ -192,6 +194,20 @@ def add_product():
         
         product_data = {
             "name": f"Product {category_id}",
+            "slug": product_slug,
+            "sku": sku,
+            "regular_price": price,
+            "sale_price": sale_price if sale_price != "0" else None,
+            "categories": [{"id": int(category_id)}],
+            "images": [{"id": image_id}] if image_id else [],
+            "meta_data": [
+                {"key": "_weight", "value": weight}
+            ]
+        }
+        
+        # Добавляем ссылку на видео в meta_data, если оно есть
+        if video_url:
+            product_data["meta_data"].append({"key": "_product_video_gallery", "value": video_url})",
             "slug": product_slug,
             "sku": sku,
             "regular_price": price,
