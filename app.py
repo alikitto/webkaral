@@ -133,7 +133,7 @@ def add_product():
         }
 
         if video_url:
-            product_data["meta_data"].append({"key": "_product_video", "value": video_url})
+            
             product_data["meta_data"].append({"key": "_product_video_gallery", "value": video_url})
 
         response = requests.post(
