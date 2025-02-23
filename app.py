@@ -37,7 +37,7 @@ s3_client = boto3.client(
     aws_secret_access_key=R2_SECRET_KEY
 )
 
-BITRATE = "1700k"
+BITRATE = "2000k"
 
 CATEGORY_DATA = {
     "126": {"name": "Qızıl üzük", "slug": "qizil-uzuk"},
@@ -83,7 +83,7 @@ def process_video(video):
         temp_input.close()
         temp_output = tempfile.NamedTemporaryFile(delete=False, suffix='.mp4')
         (
-            ffmpeg.input(temp_input.name)
+            ffmpeg.input(temp_input.name).filter('crop', 'min(iw,ih)', 'min(iw,ih)', '(iw-min(iw,ih))/2', '(ih-min(iw,ih))/2')
             .filter("scale", 720, 720)
             .output(temp_output.name, vcodec="libx264", acodec="aac", bitrate=BITRATE, format="mp4")
             .run(overwrite_output=True)
