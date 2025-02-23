@@ -63,6 +63,21 @@ def upload_to_r2(file_data, key):
         return None
 
 def process_image(image):
+    """Crop image to center and resize to 1000x1000"""
+    img = Image.open(image)
+    img = ImageOps.exif_transpose(img)
+    width, height = img.size
+    crop_size = min(width, height)
+    left = (width - crop_size) // 2
+    top = (height - crop_size) // 2
+    right = left + crop_size
+    bottom = top + crop_size
+    img = img.crop((left, top, right, bottom))
+    img = img.resize((1000, 1000), Image.LANCZOS)
+    img_bytes = io.BytesIO()
+    img.save(img_bytes, format="JPEG")
+    img_bytes.seek(0)
+    return img_bytes
     """Resize image to 1000x1000 and return as BytesIO"""
     img = Image.open(image)
     img = ImageOps.exif_transpose(img)
@@ -116,7 +131,7 @@ def add_product():
         sku = data.get("sku")
         image = request.files.get("image")
         video = request.files.get("video")
-        product_slug = f"{CATEGORY_DATA.get(category_id, {}).get('slug', 'unknown')}-{sku}"
+        product_slug = f"{CATEGORY_DATA.get(category_id, {}).get('slug', 'unknown')}-{sku}-{os.urandom(4).hex()}"
 
         image_id = upload_to_wordpress(process_image(image), f"{product_slug}.jpg") if image else None
         video_url = upload_to_r2(process_video(video), f"product_videos/{product_slug}.mp4") if video else None
