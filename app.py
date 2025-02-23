@@ -158,16 +158,23 @@ def add_product():
         sku = data.get("sku")  # Получаем артикул товара
         image = request.files.get("image")
         video = request.files.get("video")
-        product_slug = f"product-{category_id}-{os.urandom(4).hex()}"
+        product_slug = f"{category_id}-{sku}"
         
         image_id = None
         video_url = None
 
         if image:
             processed_image = process_image(image)
-            image_id = upload_to_wordpress(processed_image, f"{product_slug}.jpg")
+            image_id = upload_to_wordpress(processed_image, f"{product_slug}-{sku}.jpg")
         
         if video:
+            processed_video = executor.submit(process_video, video).result()
+            video_r2_key = f"product_videos/{product_slug}-{sku}.mp4"
+            video_url = upload_to_r2(processed_video, video_r2_key)
+            
+            # Добавляем ссылку на видео в WooCommerce
+            if video_url:
+                product_data["meta_data"].append({"key": "_product_video_gallery", "value": video_url})
             processed_video = executor.submit(process_video, video).result()
             video_r2_key = f"product_videos/{product_slug}.mp4"
             video_url = upload_to_r2(processed_video, video_r2_key)
