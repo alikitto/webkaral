@@ -6,6 +6,8 @@ import ffmpeg
 from flask import Flask, render_template, request, jsonify
 from PIL import Image, ImageOps
 import io
+import tempfile
+import concurrent.futures
 
 app = Flask(__name__)
 
@@ -70,11 +72,6 @@ def process_image(image):
     img_bytes.seek(0)
     return img_bytes
 
-import tempfile
-import concurrent.futures
-
-executor = concurrent.futures.ThreadPoolExecutor()
-
 def process_video(video):
     """Convert and crop video to 720x720 resolution with better quality"""
     try:
@@ -91,45 +88,6 @@ def process_video(video):
         )
         temp_output.seek(0)
         return open(temp_output.name, 'rb')
-    except Exception as e:
-        print(f"❌ Error processing video: {e}")
-        return None
-    """Convert and crop video to 720x720 resolution before uploading"""
-    try:
-        temp_input = tempfile.NamedTemporaryFile(delete=False, suffix='.mp4')
-        temp_input.write(video.read())
-        temp_input.close()
-        temp_output = tempfile.NamedTemporaryFile(delete=False, suffix='.mp4')
-        (
-            ffmpeg.input(temp_input.name).filter('crop', 'min(iw,ih)', 'min(iw,ih)', '(iw-min(iw,ih))/2', '(ih-min(iw,ih))/2')
-            .filter("scale", 720, 720)
-            .output(temp_output.name, vcodec="libx264", acodec="aac", bitrate=BITRATE, format="mp4")
-            .run(overwrite_output=True)
-        )
-        temp_output.seek(0)
-        return open(temp_output.name, 'rb')
-    except Exception as e:
-        print(f"❌ Error processing video: {e}")
-        return None
-    """Convert and crop video to 720x720 resolution before uploading"""
-    try:
-        temp_input = io.BytesIO()
-        temp_input.write(video.read())
-        temp_input.seek(0)
-        temp_input.write(video.read())
-        temp_input.close()  # Закрываем, чтобы ffmpeg мог использовать файл
-        temp_output = io.BytesIO()
-        temp_input.seek(0)
-        (
-            ffmpeg.input(temp_input.name)
-            .filter("scale", 720, 720)
-            .output(temp_output, vcodec="libx264", acodec="aac", bitrate=BITRATE, format="mp4")
-            .run(overwrite_output=True)
-        )
-        temp_output.seek(0)
-        temp_output.seek(0)
-        temp_output.seek(0)
-        return temp_output
     except Exception as e:
         print(f"❌ Error processing video: {e}")
         return None
@@ -155,43 +113,14 @@ def add_product():
         price = data.get("price")
         sale_price = data.get("sale_price", "0")
         weight = data.get("weight")
-        sku = data.get("sku")  # Получаем артикул товара
+        sku = data.get("sku")
         image = request.files.get("image")
         video = request.files.get("video")
         product_slug = f"{CATEGORY_DATA.get(category_id, {}).get('slug', 'unknown')}-{sku}"
-        
-        image_id = None
-        video_url = None
 
-        if image:
-            processed_image = process_image(image)
-            image_id = upload_to_wordpress(processed_image, f"{product_slug}.jpg")
-        
-        if video:
-            processed_video = process_video(video)
-            video_r2_key = f"product_videos/{product_slug}.mp4"
-            video_url = upload_to_r2(processed_video, video_r2_key)
-            video_r2_key = f"product_videos/{product_slug}.mp4"
-            video_url = upload_to_r2(processed_video, video_r2_key)
-            if video_url:
-                product_data["meta_data"].append({"key": "_product_video_gallery", "value": video_url})
-            processed_video = process_video(video)
-            video_r2_key = f"product_videos/{product_slug}.mp4"
-            video_url = upload_to_r2(processed_video, video_r2_key)
-            processed_video = process_video(video)
-            video_r2_key = f"product_videos/{product_slug}.mp4"
-            video_url = upload_to_r2(processed_video, video_r2_key)
-            if video_url:
-            product_data["meta_data"].append({"key": "_product_video_gallery", "value": video_url})
-                product_data["meta_data"].append({"key": "_product_video_gallery", "value": video_url})
-                product_data["meta_data"].append({"key": "_product_video_gallery", "value": video_url})
-            
-            # Добавляем ссылку на видео в WooCommerce
-            
-            video_r2_key = f"product_videos/{product_slug}.mp4"
-            video_url = upload_to_r2(processed_video, video_r2_key)
-            
-        
+        image_id = upload_to_wordpress(process_image(image), f"{product_slug}.jpg") if image else None
+        video_url = upload_to_r2(process_video(video), f"product_videos/{product_slug}.mp4") if video else None
+
         product_data = {
             "name": f"Product {category_id}",
             "slug": product_slug,
@@ -200,42 +129,21 @@ def add_product():
             "sale_price": sale_price if sale_price != "0" else None,
             "categories": [{"id": int(category_id)}],
             "images": [{"id": image_id}] if image_id else [],
-            "meta_data": [
-                {"key": "_weight", "value": weight}
-            ]
+            "meta_data": [{"key": "_weight", "value": weight}]
         }
-        
-        # Добавляем ссылку на видео в meta_data, если оно есть
+
         if video_url:
-            product_data["meta_data"].append({"key": "_product_video_gallery", "value": video_url}),
-            "slug": product_slug,
-            "sku": sku,
-            "regular_price": price,
-            "sale_price": sale_price if sale_price != "0" else None,
-            "categories": [{"id": int(category_id)}],
-            "images": [{"id": image_id}] if image_id else [],
-            "meta_data": [
-                {"key": "_weight", "value": weight},
-                {"key": "_product_video_gallery", "value": video_url}
-            ]
-        }
-        
+            product_data["meta_data"].append({"key": "_product_video_gallery", "value": video_url})
+
         response = requests.post(
             WC_API_URL + "/products",
             json=product_data,
             params={"consumer_key": WC_CONSUMER_KEY, "consumer_secret": WC_CONSUMER_SECRET}
         )
         
-        print("📌 [INFO] WooCommerce Response:", response.status_code, response.text)
-        
-        if response.status_code == 201:
-            return jsonify({"status": "success", "message": "Product added!"})
-        else:
-            return jsonify({"status": "error", "message": f"Error adding product: {response.text}"}), 400
-
+        return jsonify({"status": "success" if response.status_code == 201 else "error", "message": response.text})
     except Exception as e:
-        print(f"❌ [ERROR] Ошибка добавления товара: {e}")
-        return jsonify({"status": "error", "message": str(e)}), 500
+        return jsonify({"status": "error", "message": str(e)})
 
 if __name__ == "__main__":
     app.run(debug=True)
