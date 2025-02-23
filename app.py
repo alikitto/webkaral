@@ -171,6 +171,11 @@ def add_product():
             processed_video = process_video(video)
             video_r2_key = f"product_videos/{product_slug}.mp4"
             video_url = upload_to_r2(processed_video, video_r2_key)
+            if video_url:
+                product_data["meta_data"].append({"key": "_product_video_gallery", "value": video_url})
+            processed_video = process_video(video)
+            video_r2_key = f"product_videos/{product_slug}.mp4"
+            video_url = upload_to_r2(processed_video, video_r2_key)
             processed_video = process_video(video)
             video_r2_key = f"product_videos/{product_slug}.mp4"
             video_url = upload_to_r2(processed_video, video_r2_key)
